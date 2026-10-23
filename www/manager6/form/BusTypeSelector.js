@@ -3,6 +3,7 @@ Ext.define('PVE.form.BusTypeSelector', {
     alias: 'widget.pveBusSelector',
 
     withVirtIO: true,
+    withNVMe: true,
     withEMMC: true,
     withUnused: false,
 
@@ -15,6 +16,10 @@ Ext.define('PVE.form.BusTypeSelector', {
             ['ide', 'IDE'],
             ['sata', 'SATA'],
         ];
+
+        if (me.withNVMe) {
+            me.comboItems.push(['nvme', 'NVMe']);
+        }
 
         if (me.withVirtIO) {
             me.comboItems.push(['virtio', 'VirtIO Block']);

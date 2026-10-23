@@ -12,7 +12,7 @@ Ext.define('PVE.Utils', {
 
         toolkit: undefined, // (extjs|touch), set inside Toolkit.js
 
-        bus_match: /^(ide|sata|virtio|scsi|emmc)(\d+)$/,
+        bus_match: /^(ide|sata|virtio|scsi|nvme|emmc)(\d+)$/,
 
         log_severity_hash: {
             0: 'panic',
@@ -1698,6 +1698,7 @@ Ext.define('PVE.Utils', {
             sata: 6,
             scsi: 31,
             virtio: 16,
+            nvme: 16,
             emmc: 4,
             unused: 256,
         },
@@ -2016,7 +2017,7 @@ Ext.define('PVE.Utils', {
         },
 
         sortByPreviousUsage: function (vmconfig, nodename) {
-            let controllerList = ['ide', 'virtio', 'scsi', 'sata', 'emmc'];
+            let controllerList = ['ide', 'virtio', 'scsi', 'sata', 'nvme', 'emmc'];
             let usedControllers = {};
             for (const type of Object.keys(PVE.Utils.diskControllerMaxIDs)) {
                 usedControllers[type] = 0;
