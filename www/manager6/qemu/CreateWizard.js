@@ -35,17 +35,20 @@ Ext.define('PVE.qemu.CreateWizard', {
         // user selected windows + second cdrom
         if (values.ide0 && values.ide0.match(/media=cdrom/)) {
             let disk;
-            PVE.Utils.forEachBus(['ide', 'scsi', 'virtio', 'sata', 'nvme'], (type, id) => {
-                let confId = type + id;
-                if (!values[confId]) {
-                    return undefined;
-                }
-                if (values[confId].match(/media=cdrom/)) {
-                    return undefined;
-                }
-                disk = confId;
-                return false; // abort loop
-            });
+            PVE.Utils.forEachBus(
+                ['ide', 'scsi', 'virtio', 'sata', 'nvme', 'usbdisk'],
+                (type, id) => {
+                    let confId = type + id;
+                    if (!values[confId]) {
+                        return undefined;
+                    }
+                    if (values[confId].match(/media=cdrom/)) {
+                        return undefined;
+                    }
+                    disk = confId;
+                    return false; // abort loop
+                },
+            );
 
             let order = [];
             if (disk) {

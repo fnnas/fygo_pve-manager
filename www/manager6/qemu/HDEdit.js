@@ -19,6 +19,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             isVirtIO: false,
             isSCSISingle: false,
             isNVMe: false,
+            isUSB: false,
         },
     },
 
@@ -33,6 +34,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             vm.set('isSCSI', value.match(/^scsi/));
             vm.set('isVirtIO', value.match(/^virtio/));
             vm.set('isNVMe', value.match(/^nvme/));
+            vm.set('isUSB', value.match(/^usbdisk/));
 
             me.fireIdChange();
         },
@@ -67,6 +69,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 vm.set('isSCSI', view.confid.match(/^scsi/));
                 vm.set('isVirtIO', view.confid.match(/^virtio/));
                 vm.set('isNVMe', view.confid.match(/^nvme/));
+                vm.set('isUSB', view.confid.match(/^usbdisk/));
             }
         },
     },
@@ -99,6 +102,11 @@ Ext.define('PVE.qemu.HDInputPanel', {
         PVE.Utils.propertyStringSet(me.drive, values.readOnly, 'ro', 'on');
         PVE.Utils.propertyStringSet(me.drive, values.cache, 'cache');
         PVE.Utils.propertyStringSet(me.drive, values.aio, 'aio');
+        if (confid.match(/^usbdisk/)) {
+            PVE.Utils.propertyStringSet(me.drive, !values.removable, 'removable', '0');
+        } else {
+            delete me.drive.removable;
+        }
 
         ['mbps_rd', 'mbps_wr', 'iops_rd', 'iops_wr'].forEach((name) => {
             let burst_name = `${name}_max`;
@@ -159,6 +167,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.iothread = PVE.Parser.parseBoolean(drive.iothread);
         values.readOnly = PVE.Parser.parseBoolean(drive.ro);
         values.aio = drive.aio || '__default__';
+        values.removable = PVE.Parser.parseBoolean(drive.removable, 1);
 
         values.mbps_rd = drive.mbps_rd;
         values.mbps_wr = drive.mbps_wr;
@@ -348,7 +357,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 name: 'ssd',
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{isVirtIO || isNVMe}',
+                    disabled: '{isVirtIO || isNVMe || isUSB}',
                 },
             },
             {
@@ -358,7 +367,17 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 fieldLabel: gettext('Read-only'),
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{!isVirtIO && !isSCSI}',
+                    disabled: '{!isVirtIO && !isSCSI && !isUSB}',
+                },
+            },
+            {
+                xtype: 'proxmoxcheckbox',
+                name: 'removable',
+                fieldLabel: gettext('Removable'),
+                value: true,
+                bind: {
+                    disabled: '{!isUSB}',
+                    hidden: '{!isUSB}',
                 },
             },
         );
