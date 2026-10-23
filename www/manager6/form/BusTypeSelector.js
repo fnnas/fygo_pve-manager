@@ -3,6 +3,7 @@ Ext.define('PVE.form.BusTypeSelector', {
     alias: 'widget.pveBusSelector',
 
     withVirtIO: true,
+    withEMMC: true,
     withUnused: false,
 
     allowedValuesPerCategory: PVE.qemu.Architecture.allowedBusses,
@@ -20,6 +21,10 @@ Ext.define('PVE.form.BusTypeSelector', {
         }
 
         me.comboItems.push(['scsi', 'SCSI']);
+
+        if (me.withEMMC) {
+            me.comboItems.push(['emmc', 'eMMC']);
+        }
 
         if (me.withUnused) {
             me.comboItems.push(['unused', 'Unused']);

@@ -11,6 +11,8 @@ Ext.define('PVE.qemu.HDInputPanel', {
     importDisk: false, // use import options
     importSelection: undefined, // preselect a disk to import
 
+    emmcDefaultBootSize: 4096, // KiB for each boot partition
+
     vmconfig: {}, // used to select usused disks
 
     viewModel: {
@@ -18,6 +20,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             isSCSI: false,
             isVirtIO: false,
             isSCSISingle: false,
+            isEMMC: false,
         },
     },
 
@@ -31,7 +34,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
             let value = field.getValue();
             vm.set('isSCSI', value.match(/^scsi/));
             vm.set('isVirtIO', value.match(/^virtio/));
+            vm.set('isEMMC', value.match(/^emmc/));
 
+            me.getView().updateEMMCDiskSizeField();
             me.fireIdChange();
         },
 
@@ -64,8 +69,54 @@ Ext.define('PVE.qemu.HDInputPanel', {
             if (view.confid) {
                 vm.set('isSCSI', view.confid.match(/^scsi/));
                 vm.set('isVirtIO', view.confid.match(/^virtio/));
+                vm.set('isEMMC', view.confid.match(/^emmc/));
             }
         },
+    },
+
+    updateEMMCDiskSizeField: function () {
+        const me = this;
+        if (!me.isCreate || me.unused || me.importDisk) {
+            return;
+        }
+        const field = me.down('field[name=disksize]');
+        if (!field) {
+            return;
+        }
+        if (!field.emmcOriginalOptions) {
+            const original = {
+                decimalPrecision: field.decimalPrecision,
+                minValue: field.minValue,
+                maxValue: field.maxValue,
+                validator: field.validator,
+            };
+            field.emmcOriginalOptions = original;
+            field.validator = function (value) {
+                const result = original.validator?.call(this, value) ?? true;
+                if (result !== true || !me.getViewModel().get('isEMMC')) {
+                    return result;
+                }
+                const bytes = this.parseValue(value) * 1024 ** 3;
+                return (
+                    (Number.isSafeInteger(bytes) &&
+                        bytes % 512 === 0 &&
+                        (bytes > 2 * 1024 ** 3 || Number.isInteger(Math.log2(bytes)))) ||
+                    gettext(
+                        'The eMMC user area must be a power of two up to 2 GiB, or a multiple of 512 bytes above 2 GiB.',
+                    )
+                );
+            };
+        }
+        const emmc = !!me.getViewModel().get('isEMMC');
+        const original = field.emmcOriginalOptions;
+        const bootBytes = Number(me.down('field[name=emmcBootSize]')?.getValue() || 0) * 1024;
+        // A 512-byte capacity step in GiB needs up to 21 decimal places.
+        field.decimalPrecision = emmc ? 21 : original.decimalPrecision;
+        field.setMinValue(
+            emmc ? Math.max(2 * 1024 ** 2, bootBytes) / 1024 ** 3 : original.minValue,
+        );
+        field.setMaxValue(emmc ? (0xffffffff * 512) / 1024 ** 3 : original.maxValue);
+        field.validate();
     },
 
     onGetValues: function (values) {
@@ -102,6 +153,37 @@ Ext.define('PVE.qemu.HDInputPanel', {
             PVE.Utils.propertyStringSet(me.drive, values[name], name);
             PVE.Utils.propertyStringSet(me.drive, values[burst_name], burst_name);
         });
+
+        const emmcOptions = [
+            'boot-partition-size',
+            'rpmb-partition-size',
+            'boot-config',
+            'auth-key',
+            'cid',
+        ];
+        if (/^emmc/.test(confid)) {
+            const bootSize = Number(values.emmcBootSize || 0) * 1024;
+            const rpmbSize = Number(values.emmcRpmbSize || 0) * 1024;
+            const bootConfig =
+                Number(values.emmcPartition || 0) |
+                (Number(values.emmcBoot || 0) << 3) |
+                (values.emmcBootAck ? 64 : 0);
+            PVE.Utils.propertyStringSet(me.drive, bootSize, 'boot-partition-size');
+            PVE.Utils.propertyStringSet(me.drive, rpmbSize, 'rpmb-partition-size');
+            PVE.Utils.propertyStringSet(me.drive, bootConfig, 'boot-config');
+            PVE.Utils.propertyStringSet(me.drive, values.emmcAuthKey, 'auth-key');
+            PVE.Utils.propertyStringSet(me.drive, values.emmcCid, 'cid');
+            ['discard', 'ssd', 'iothread', 'ro', 'serial', 'rerror', 'werror'].forEach(
+                (name) => delete me.drive[name],
+            );
+            if (me.isCreate && !me.unused && !values.hdimage && !values['import-from']) {
+                // The size field specifies user capacity. The API takes the whole image size.
+                const imageGiB = Number(values.disksize) + (2 * bootSize + rpmbSize) / 1024 ** 3;
+                me.drive.file = `${values.hdstorage}:${imageGiB}`;
+            }
+        } else {
+            emmcOptions.forEach((name) => delete me.drive[name]);
+        }
 
         params[confid] = PVE.Parser.printQemuDrive(me.drive);
 
@@ -156,6 +238,23 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.iothread = PVE.Parser.parseBoolean(drive.iothread);
         values.readOnly = PVE.Parser.parseBoolean(drive.ro);
         values.aio = drive.aio || '__default__';
+        // Attaching an existing image uses the same defaults as creating one,
+        // unless it already declares an eMMC layout (including explicit zeroes).
+        const emmcBootSize =
+            me.isCreate &&
+            !['boot-partition-size', 'rpmb-partition-size', 'boot-config', 'auth-key'].some(
+                (name) => drive[name] !== undefined,
+            )
+                ? me.emmcDefaultBootSize
+                : 0;
+        values.emmcBootSize = Number(drive['boot-partition-size'] ?? emmcBootSize * 1024) / 1024;
+        values.emmcRpmbSize = Number(drive['rpmb-partition-size'] ?? 0) / 1024;
+        const bootConfig = Number(drive['boot-config'] || 0);
+        values.emmcPartition = String(bootConfig & 7);
+        values.emmcBoot = String((bootConfig >> 3) & 7);
+        values.emmcBootAck = !!(bootConfig & 64);
+        values.emmcAuthKey = drive['auth-key'] || '';
+        values.emmcCid = drive.cid || '';
 
         values.mbps_rd = drive.mbps_rd;
         values.mbps_wr = drive.mbps_wr;
@@ -316,6 +415,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 fieldLabel: gettext('Discard'),
                 reference: 'discard',
                 name: 'discard',
+                bind: {
+                    disabled: '{isEMMC}',
+                },
             },
             {
                 xtype: 'proxmoxcheckbox',
@@ -342,7 +444,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 name: 'ssd',
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{isVirtIO}',
+                    disabled: '{isVirtIO || isEMMC}',
                 },
             },
             {
@@ -470,6 +572,38 @@ Ext.define('PVE.qemu.HDInputPanel', {
             },
         ];
 
+        // Default all new attachments to 4 MiB per boot area, with RPMB disabled.
+        // setDrive preserves any layout already declared by an existing image.
+        const emmcBootSize = me.isCreate ? me.emmcDefaultBootSize : 0;
+        const partitionSizeField = (name, fieldLabel, maxValue, value = 0) => ({
+            xtype: 'proxmoxintegerfield',
+            name,
+            fieldLabel,
+            labelWidth: 150,
+            value,
+            minValue: 0,
+            maxValue,
+            step: 128,
+            allowBlank: false,
+            validator: (value) =>
+                Number(value) % 128 === 0 || gettext('Must be a multiple of 128 KiB.'),
+            listeners: {
+                change: () => {
+                    ['emmcBoot', 'emmcPartition', 'emmcAuthKey'].forEach((field) =>
+                        me.down(`field[name=${field}]`)?.validate(),
+                    );
+                    me.updateEMMCDiskSizeField();
+                },
+            },
+            bind: { disabled: '{!isEMMC}' },
+        });
+        const needsPartition = (value, name) => {
+            const size = Number(me.down(`field[name=${name}]`)?.getValue() || 0);
+            return value && !size
+                ? gettext('Configure the corresponding partition size first.')
+                : true;
+        };
+
         me.items = [
             {
                 xtype: 'tabpanel',
@@ -489,6 +623,142 @@ Ext.define('PVE.qemu.HDInputPanel', {
                         getValues: () => ({}),
                     },
                     {
+                        title: 'eMMC',
+                        xtype: 'inputpanel',
+                        reference: 'emmcPanel',
+                        bind: { disabled: '{!isEMMC}' },
+                        column1: [
+                            {
+                                xtype: 'textfield',
+                                name: 'emmcCid',
+                                fieldLabel: gettext('eMMC CID'),
+                                emptyText: gettext('Default'),
+                                value: '',
+                                validator: (value) =>
+                                    !value ||
+                                    (value.length === 32 && /^[0-9a-fA-F]{32}$/.test(value)) ||
+                                    gettext('Enter exactly 32 hexadecimal characters (16 bytes).'),
+                                bind: { disabled: '{!isEMMC}' },
+                            },
+                            partitionSizeField(
+                                'emmcBootSize',
+                                gettext('Each boot partition (KiB)'),
+                                32640,
+                                emmcBootSize,
+                            ),
+                            partitionSizeField('emmcRpmbSize', gettext('RPMB size (KiB)'), 16384),
+                            {
+                                xtype: 'proxmoxKVComboBox',
+                                name: 'emmcBoot',
+                                fieldLabel: gettext('Boot partition'),
+                                value: '0',
+                                allowBlank: false,
+                                comboItems: [
+                                    ['0', gettext('Disabled')],
+                                    ['1', 'BOOT1'],
+                                    ['2', 'BOOT2'],
+                                    ['7', gettext('User area')],
+                                ],
+                                validator: function () {
+                                    const value = this.getValue();
+                                    return needsPartition(
+                                        value === '1' || value === '2',
+                                        'emmcBootSize',
+                                    );
+                                },
+                                bind: { disabled: '{!isEMMC}' },
+                            },
+                        ],
+                        column2: [
+                            {
+                                xtype: 'proxmoxKVComboBox',
+                                name: 'emmcPartition',
+                                fieldLabel: gettext('Initial partition access'),
+                                value: '0',
+                                allowBlank: false,
+                                comboItems: [
+                                    ['0', gettext('User area')],
+                                    ['1', 'BOOT1'],
+                                    ['2', 'BOOT2'],
+                                    ['3', 'RPMB'],
+                                ],
+                                validator: function () {
+                                    const value = this.getValue();
+                                    return needsPartition(
+                                        value !== '0',
+                                        value === '3' ? 'emmcRpmbSize' : 'emmcBootSize',
+                                    );
+                                },
+                                bind: { disabled: '{!isEMMC}' },
+                            },
+                            {
+                                xtype: 'proxmoxcheckbox',
+                                name: 'emmcBootAck',
+                                fieldLabel: gettext('Boot acknowledgement'),
+                                value: false,
+                                bind: { disabled: '{!isEMMC}' },
+                            },
+                            {
+                                xtype: 'textfield',
+                                name: 'emmcAuthKey',
+                                inputType: 'password',
+                                fieldLabel: gettext('RPMB authentication key'),
+                                emptyText: gettext('Not preset'),
+                                value: '',
+                                validator: (value) => {
+                                    if (!value) {
+                                        return true;
+                                    }
+                                    return /^[0-9a-fA-F]{64}$/.test(value)
+                                        ? needsPartition(true, 'emmcRpmbSize')
+                                        : gettext(
+                                              'Enter exactly 64 hexadecimal characters (32 bytes).',
+                                          );
+                                },
+                                bind: { disabled: '{!isEMMC}' },
+                            },
+                        ],
+                        columnB: [
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'Leave CID empty to use the QEMU default. A custom CID requires QEMU support for emmc.cid and is preserved in VM backups. Shut down and start the VM to apply changes. Linux on SDHCI reports the last CID byte as 00 because the controller omits the CRC byte.',
+                                ),
+                            },
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'Displaying the complete CID requires a QEMU SDHCI response mode that retains the CRC byte, plus sdhci.debug_quirks2=0x10000 in the guest Linux kernel command line followed by a guest reboot. The current QEMU package does not provide that mode; enabling the parameter alone misreads CID/CSD. The parameter affects all SDHCI controllers in the guest and overrides other quirks2 settings.',
+                                ),
+                            },
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'Image layout: BOOT1 | BOOT2 | RPMB | user area. For new images, disk size specifies the user area; boot and RPMB sizes are added automatically. Existing and imported images must contain the complete layout; set partition sizes to match the image.',
+                                ),
+                            },
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'The user area must be at least 2 MiB and at least as large as each boot partition. Up to 2 GiB it must be a power of two; above 2 GiB it must be a multiple of 512 bytes. The maximum user capacity is 2 TiB minus 512 bytes.',
+                                ),
+                            },
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'Changing partition sizes reinterprets existing image data. Shut down the VM before changing devices, layouts or capacity. Firmware must support SD/MMC boot; the boot partition setting does not set BIOS/UEFI boot priority.',
+                                ),
+                            },
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'A size of 0 disables RPMB. Guest-programmed RPMB keys and write counters are lost on cold restarts. A preset key is stored in the VM configuration and applied each start; it requires QEMU support for emmc.auth-key. With RPMB, use disk-only backups and offline migration; RAM snapshots, hibernation and live migration are unavailable.',
+                                ),
+                            },
+                        ],
+                        getValues: () => ({}),
+                    },
+                    {
                         title: gettext('Bandwidth'),
                         xtype: 'inputpanel',
                         reference: 'bwpanel',
@@ -502,6 +772,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         ];
 
         me.callParent();
+        me.updateEMMCDiskSizeField();
     },
 
     setAdvancedVisible: function (visible) {
