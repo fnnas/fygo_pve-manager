@@ -3,6 +3,7 @@ include ../../defines.mk
 BIOME ?= proxmox-biome
 
 JSSRC= 							\
+	locale/EMMC.js					\
 	Parser.js					\
 	StateProvider.js				\
 	qemu/Architecture.js				\

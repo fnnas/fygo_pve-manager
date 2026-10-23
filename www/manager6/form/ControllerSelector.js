@@ -4,6 +4,7 @@ Ext.define('PVE.form.ControllerSelector', {
 
     withVirtIO: true,
     withUSB: true,
+    withEMMC: true,
     withUnused: false,
 
     vmconfig: {}, // used to check for existing devices
@@ -96,6 +97,7 @@ Ext.define('PVE.form.ControllerSelector', {
                     value: PVE.qemu.OSDefaults.getDefaults().busType,
                     withVirtIO: me.withVirtIO,
                     withUSB: me.withUSB,
+                    withEMMC: me.withEMMC,
                     withUnused: me.withUnused,
                     allowBlank: false,
                     flex: 2,

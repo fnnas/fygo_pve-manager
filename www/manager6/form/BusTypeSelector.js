@@ -4,6 +4,7 @@ Ext.define('PVE.form.BusTypeSelector', {
 
     withVirtIO: true,
     withUSB: true,
+    withEMMC: true,
     withUnused: false,
 
     allowedValuesPerCategory: PVE.qemu.Architecture.allowedBusses,
@@ -25,6 +26,10 @@ Ext.define('PVE.form.BusTypeSelector', {
 
         if (me.withUSB) {
             me.comboItems.push(['usbdisk', 'USB']);
+        }
+
+        if (me.withEMMC) {
+            me.comboItems.push(['emmc', 'eMMC']);
         }
 
         if (me.withUnused) {

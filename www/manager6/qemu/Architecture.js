@@ -58,8 +58,8 @@ Ext.define('PVE.qemu.Architecture', {
     },
 
     allowedBusses: {
-        x86_64: ['ide', 'sata', 'virtio', 'scsi', 'nvme', 'usbdisk', 'unused'],
-        aarch64: ['sata', 'virtio', 'scsi', 'nvme', 'usbdisk', 'unused'],
+        x86_64: ['ide', 'sata', 'virtio', 'scsi', 'nvme', 'usbdisk', 'emmc', 'unused'],
+        aarch64: ['sata', 'virtio', 'scsi', 'nvme', 'usbdisk', 'emmc', 'unused'],
     },
 
     allowedFirmware: {
