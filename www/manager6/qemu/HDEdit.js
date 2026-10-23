@@ -30,6 +30,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             nvmeMetadata: false,
             nvmeProtection: false,
             nvmeSRIOV: false,
+            isUSB: false,
             isEMMC: false,
             isSDCard: false,
         },
@@ -46,6 +47,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             vm.set('isSCSI', value.match(/^scsi/));
             vm.set('isVirtIO', value.match(/^virtio/));
             vm.set('isNVMe', value.match(/^nvme/));
+            vm.set('isUSB', value.match(/^usbdisk/));
             vm.set('isEMMC', value.match(/^emmc/));
             vm.set('isSDCard', value.match(/^sdcard/));
 
@@ -84,6 +86,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 vm.set('isSCSI', view.confid.match(/^scsi/));
                 vm.set('isVirtIO', view.confid.match(/^virtio/));
                 vm.set('isNVMe', view.confid.match(/^nvme/));
+                vm.set('isUSB', view.confid.match(/^usbdisk/));
                 vm.set('isEMMC', view.confid.match(/^emmc/));
                 vm.set('isSDCard', view.confid.match(/^sdcard/));
             }
@@ -163,6 +166,11 @@ Ext.define('PVE.qemu.HDInputPanel', {
         PVE.Utils.propertyStringSet(me.drive, values.readOnly, 'ro', 'on');
         PVE.Utils.propertyStringSet(me.drive, values.cache, 'cache');
         PVE.Utils.propertyStringSet(me.drive, values.aio, 'aio');
+        if (confid.match(/^usbdisk/)) {
+            PVE.Utils.propertyStringSet(me.drive, !values.removable, 'removable', '0');
+        } else {
+            delete me.drive.removable;
+        }
 
         ['mbps_rd', 'mbps_wr', 'iops_rd', 'iops_wr'].forEach((name) => {
             let burst_name = `${name}_max`;
@@ -290,6 +298,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.iothread = PVE.Parser.parseBoolean(drive.iothread);
         values.readOnly = PVE.Parser.parseBoolean(drive.ro);
         values.aio = drive.aio || '__default__';
+        values.removable = PVE.Parser.parseBoolean(drive.removable, 1);
         // Attaching an existing image uses the same defaults as creating one,
         // unless it already declares an eMMC layout (including explicit zeroes).
         const emmcBootSize =
@@ -310,14 +319,19 @@ Ext.define('PVE.qemu.HDInputPanel', {
         Object.assign(values, PVE.qemu.SDCard.loadValues(drive));
         Object.assign(values, PVE.qemu.NVMe.loadValues(drive));
 
-        values.mbps_rd = drive.mbps_rd;
-        values.mbps_wr = drive.mbps_wr;
-        values.iops_rd = drive.iops_rd;
-        values.iops_wr = drive.iops_wr;
-        values.mbps_rd_max = drive.mbps_rd_max;
-        values.mbps_wr_max = drive.mbps_wr_max;
-        values.iops_rd_max = drive.iops_rd_max;
-        values.iops_wr_max = drive.iops_wr_max;
+        for (const name of [
+            'mbps_rd',
+            'mbps_wr',
+            'iops_rd',
+            'iops_wr',
+            'mbps_rd_max',
+            'mbps_wr_max',
+            'iops_rd_max',
+            'iops_wr_max',
+        ]) {
+            // Zero means unlimited/default, represented by an empty field.
+            values[name] = Number(drive[name]) === 0 ? null : drive[name];
+        }
 
         me.setValues(values);
     },
@@ -498,7 +512,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 name: 'ssd',
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{isVirtIO || isNVMe || isEMMC || isSDCard}',
+                    disabled: '{isVirtIO || isNVMe || isUSB || isEMMC || isSDCard}',
                 },
             },
             {
@@ -508,7 +522,17 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 fieldLabel: gettext('Read-only'),
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{!isVirtIO && !isSCSI && !isNVMe}',
+                    disabled: '{!isVirtIO && !isSCSI && !isUSB && !isNVMe}',
+                },
+            },
+            {
+                xtype: 'proxmoxcheckbox',
+                name: 'removable',
+                fieldLabel: gettext('Removable'),
+                value: true,
+                bind: {
+                    disabled: '{!isUSB}',
+                    hidden: '{!isUSB}',
                 },
             },
         );
@@ -552,7 +576,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'numberfield',
                 name: 'mbps_rd',
-                minValue: 1,
+                minValue: 1 / 1024 ** 2,
+                maxValue: 1e15 / 1024 ** 2,
+                decimalPrecision: 20,
                 step: 1,
                 fieldLabel: gettext('Read limit') + ' (MB/s)',
                 labelWidth: labelWidth,
@@ -561,7 +587,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'numberfield',
                 name: 'mbps_wr',
-                minValue: 1,
+                minValue: 1 / 1024 ** 2,
+                maxValue: 1e15 / 1024 ** 2,
+                decimalPrecision: 20,
                 step: 1,
                 fieldLabel: gettext('Write limit') + ' (MB/s)',
                 labelWidth: labelWidth,
@@ -570,7 +598,8 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'proxmoxintegerfield',
                 name: 'iops_rd',
-                minValue: 10,
+                minValue: 1,
+                maxValue: 1e15,
                 step: 10,
                 fieldLabel: gettext('Read limit') + ' (ops/s)',
                 labelWidth: labelWidth,
@@ -579,7 +608,8 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'proxmoxintegerfield',
                 name: 'iops_wr',
-                minValue: 10,
+                minValue: 1,
+                maxValue: 1e15,
                 step: 10,
                 fieldLabel: gettext('Write limit') + ' (ops/s)',
                 labelWidth: labelWidth,
@@ -591,7 +621,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'numberfield',
                 name: 'mbps_rd_max',
-                minValue: 1,
+                minValue: 1 / 1024 ** 2,
+                maxValue: 1e15 / 1024 ** 2,
+                decimalPrecision: 20,
                 step: 1,
                 fieldLabel: gettext('Read max burst') + ' (MB)',
                 labelWidth: labelWidth,
@@ -600,7 +632,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'numberfield',
                 name: 'mbps_wr_max',
-                minValue: 1,
+                minValue: 1 / 1024 ** 2,
+                maxValue: 1e15 / 1024 ** 2,
+                decimalPrecision: 20,
                 step: 1,
                 fieldLabel: gettext('Write max burst') + ' (MB)',
                 labelWidth: labelWidth,
@@ -609,7 +643,8 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'proxmoxintegerfield',
                 name: 'iops_rd_max',
-                minValue: 10,
+                minValue: 1,
+                maxValue: 1e15,
                 step: 10,
                 fieldLabel: gettext('Read max burst') + ' (ops)',
                 labelWidth: labelWidth,
@@ -618,13 +653,38 @@ Ext.define('PVE.qemu.HDInputPanel', {
             {
                 xtype: 'proxmoxintegerfield',
                 name: 'iops_wr_max',
-                minValue: 10,
+                minValue: 1,
+                maxValue: 1e15,
                 step: 10,
                 fieldLabel: gettext('Write max burst') + ' (ops)',
                 labelWidth: labelWidth,
                 emptyText: gettext('default'),
             },
         ];
+
+        bwColumn1.forEach((config) => {
+            config.listeners = {
+                change: (field) => me.down(`field[name=${field.name}_max]`)?.validate(),
+            };
+        });
+        bwColumn2.forEach((config) => {
+            const rateName = config.name.slice(0, -4);
+            config.validator = (value) => {
+                if (Ext.isEmpty(value)) {
+                    return true;
+                }
+                const rate = me.down(`field[name=${rateName}]`)?.getValue();
+                if (!rate) {
+                    return gettext('Set the corresponding limit before configuring a burst.');
+                }
+                return (
+                    Number(value) >= Number(rate) ||
+                    gettext(
+                        'The burst value must be greater than or equal to the corresponding limit.',
+                    )
+                );
+            };
+        });
 
         // Default all new attachments to 4 MiB per boot area, with RPMB disabled.
         // setDrive preserves any layout already declared by an existing image.
@@ -944,11 +1004,20 @@ Ext.define('PVE.qemu.HDImportEdit', {
         onVmidChange: function (_selector, value) {
             let me = this;
             let view = me.getView();
+            const generation = (me.targetConfigGeneration || 0) + 1;
+            me.targetConfigGeneration = generation;
+            const isCurrent = () =>
+                !view.destroyed && !view.destroying && me.targetConfigGeneration === generation;
             let ipanel = me.lookup('ipanel');
             ipanel.setDisabled(true);
             ipanel.setVisible(!!value);
             let validation = me.lookup('validationProxy');
-            validation.setValue(false);
+            validation.setValue('');
+            if (!value) {
+                view.url = undefined;
+                Proxmox.Utils.setErrorMask(ipanel, false);
+                return;
+            }
             view.url = `/api2/extjs/nodes/${view.nodename}/qemu/${value}/config`;
             Proxmox.Utils.setErrorMask(ipanel, true);
 
@@ -956,14 +1025,20 @@ Ext.define('PVE.qemu.HDImportEdit', {
                 url: view.url,
                 method: 'GET',
                 success: function (response, opts) {
+                    if (!isCurrent()) {
+                        return;
+                    }
                     ipanel.setVMConfig(response.result.data);
 
-                    validation.setValue(true);
+                    validation.setValue('ready');
 
                     ipanel.setDisabled(false);
                     Proxmox.Utils.setErrorMask(ipanel, false);
                 },
                 failure: function (response, _opts) {
+                    if (!isCurrent()) {
+                        return;
+                    }
                     Proxmox.Utils.setErrorMask(ipanel, response.htmlStatus);
                 },
             });
@@ -1006,7 +1081,7 @@ Ext.define('PVE.qemu.HDImportEdit', {
             reference: 'validationProxy',
             submitValue: false,
             hidden: true,
-            validator: (val) => !!val,
+            allowBlank: false,
         },
         {
             xtype: 'pveQemuHDInputPanel',

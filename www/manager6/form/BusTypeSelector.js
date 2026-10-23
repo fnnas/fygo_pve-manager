@@ -4,6 +4,7 @@ Ext.define('PVE.form.BusTypeSelector', {
 
     withVirtIO: true,
     withNVMe: true,
+    withUSB: true,
     withEMMC: true,
     withSDCard: true,
     withUnused: false,
@@ -27,6 +28,10 @@ Ext.define('PVE.form.BusTypeSelector', {
         }
 
         me.comboItems.push(['scsi', 'SCSI']);
+
+        if (me.withUSB) {
+            me.comboItems.push(['usbdisk', 'USB']);
+        }
 
         if (me.withEMMC) {
             me.comboItems.push(['emmc', 'eMMC']);

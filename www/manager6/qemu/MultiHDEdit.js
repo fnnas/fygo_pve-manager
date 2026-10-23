@@ -9,16 +9,40 @@ Ext.define('PVE.qemu.MultiHDPanel', {
     controller: {
         xclass: 'Ext.app.ViewController',
 
-        // maxCount is the sum of all controller ids - 1 (ide2 is fixed in the wizard)
+        init: function (view) {
+            const me = this;
+            view.on(
+                'afterrender',
+                () => {
+                    const bindings = ['architecture', 'ostype', 'scsihw', 'isoConfig', 'ide0'].map(
+                        (name) =>
+                            me.getViewModel().bind(`{current.${name}}`, () => {
+                                if (view.nodename && !view.destroyed && !view.destroying) {
+                                    me.updateVMConfig();
+                                }
+                            }),
+                    );
+                    view.on('destroy', () => Ext.destroy(bindings), me, { single: true });
+                },
+                me,
+                { single: true },
+            );
+        },
+
+        // Unused volumes do not provide hardware slots; reserve the default CD drive.
         maxCount:
-            Object.values(PVE.Utils.diskControllerMaxIDs).reduce(
-                (previous, current) => previous + current,
-                0,
-            ) - 1,
+            Object.entries(PVE.Utils.diskControllerMaxIDs)
+                .filter(([bus]) => bus !== 'unused')
+                .reduce((previous, [, count]) => previous + count, 0) - 1,
 
         getNextFreeDisk: function (vmconfig) {
             let nodename = this.getView().nodename;
             let clist = PVE.Utils.sortByPreviousUsage(vmconfig, nodename);
+            const arch = PVE.qemu.Architecture.getGuestArchitecture(vmconfig.arch, nodename);
+            const allowed = PVE.qemu.Architecture.allowedBusses[arch];
+            if (allowed) {
+                clist = clist.filter((bus) => allowed.includes(bus));
+            }
             return PVE.Utils.nextFreeDisk(clist, vmconfig);
         },
 

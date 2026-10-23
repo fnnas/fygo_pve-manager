@@ -47,9 +47,16 @@ Ext.define('PVE.panel.MultiDiskPanel', {
             me.lookup('addButton').setDisabled(true);
             me.lookup('addImportButton').setDisabled(true);
             me.addDisk(importDisk);
-            let count = me.lookup('grid').getStore().getCount() + 1; // +1 is from ide2
-            me.lookup('addButton').setDisabled(count >= me.maxCount);
-            me.lookup('addImportButton').setDisabled(count >= me.maxCount);
+            me.updateAddButtons();
+        },
+
+        updateAddButtons: function () {
+            let me = this;
+            const full =
+                me.lookup('grid').getStore().getCount() >= me.maxCount ||
+                !me.getNextFreeDisk(me.getVMConfig(true));
+            me.lookup('addButton').setDisabled(full);
+            me.lookup('addImportButton').setDisabled(full || !me.getView().importDisk);
         },
 
         getNextFreeDisk: function (vmconfig) {
@@ -80,6 +87,7 @@ Ext.define('PVE.panel.MultiDiskPanel', {
             let rec = store.add({
                 name: nextFreeDisk.confid,
                 itemId,
+                valid: false,
             })[0];
 
             let panel = me.addPanel(itemId, vmconfig, nextFreeDisk, importDisk);
@@ -102,6 +110,7 @@ Ext.define('PVE.panel.MultiDiskPanel', {
             if (store.getCount() === 1) {
                 grid.getSelectionModel().select(0, false);
             }
+            me.updateVMConfig();
         },
 
         getBaseVMConfig: function () {
@@ -126,8 +135,12 @@ Ext.define('PVE.panel.MultiDiskPanel', {
 
         checkValidity: function () {
             let me = this;
-            let valid = me.lookup('grid').getStore().findExact('valid', false) === -1;
-            me.lookup('validationfield').setValue(valid);
+            const valid =
+                me
+                    .lookup('grid')
+                    .getStore()
+                    .findBy((rec) => rec.get('valid') !== true) === -1;
+            me.lookup('validationfield').setValue(valid ? 'ready' : '');
         },
 
         updateVMConfig: function () {
@@ -136,32 +149,36 @@ Ext.define('PVE.panel.MultiDiskPanel', {
             let grid = me.lookup('grid');
             let store = grid.getStore();
 
-            let vmconfig = me.getVMConfig();
-
-            let valid = true;
+            // Incomplete disks reserve their slots too, so they cannot acquire
+            // the same ID when their storage fields become valid later.
+            let vmconfig = me.getVMConfig(true);
+            const baseConfig = me.getBaseVMConfig();
 
             store.each((rec) => {
                 let itemId = rec.get('itemId');
-                let name = rec.get('name');
                 let panel = view.getComponent(itemId);
                 if (!panel) {
                     throw 'unexpected missing panel';
                 }
 
-                // copy config for each panel and remote its own id
-                let panel_vmconfig = Ext.apply({}, vmconfig);
-                if (panel_vmconfig[name] === itemId) {
-                    delete panel_vmconfig[name];
-                }
-
-                if (!rec.get('valid')) {
-                    valid = false;
-                }
+                // Exclude only this card. Other cards with the same ID and
+                // reserved devices such as the install CD still occupy it.
+                let panel_vmconfig = Ext.apply({}, baseConfig);
+                store.each((other) => {
+                    if (other !== rec) {
+                        panel_vmconfig[other.get('name')] = other.get('itemId');
+                    }
+                });
 
                 panel.updateVMConfig(panel_vmconfig);
+                rec.set(
+                    'valid',
+                    panel.query('field').every((field) => field.isValid()),
+                );
             });
 
-            me.lookup('validationfield').setValue(valid);
+            me.checkValidity();
+            me.updateAddButtons();
 
             return vmconfig;
         },
@@ -183,7 +200,12 @@ Ext.define('PVE.panel.MultiDiskPanel', {
 
             // so that it happens after the layouting
             setTimeout(function () {
-                me.updateVMConfig();
+                if (!me.destroyed && !me.destroying) {
+                    const view = me.getView();
+                    if (view && !view.destroyed && !view.destroying) {
+                        me.updateVMConfig();
+                    }
+                }
             }, 10);
         },
 
@@ -203,8 +225,6 @@ Ext.define('PVE.panel.MultiDiskPanel', {
 
             store.remove(record);
             me.getView().remove(record.get('itemId'));
-            me.lookup('addButton').setDisabled(false);
-            me.lookup('addImportButton').setDisabled(false);
             me.updateVMConfig();
             me.checkValidity();
         },
@@ -304,8 +324,8 @@ Ext.define('PVE.panel.MultiDiskPanel', {
                     hidden: true,
                     reference: 'validationfield',
                     submitValue: false,
-                    value: true,
-                    validator: (val) => !!val,
+                    value: 'ready',
+                    allowBlank: false,
                 },
             ],
         },

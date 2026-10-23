@@ -67,6 +67,9 @@ Ext.define('PVE.qemu.BootOrderPanel', {
     },
 
     isBootdev: function (dev, value) {
+        if (typeof value !== 'string' || value.length === 0) {
+            return false;
+        }
         const detachedNVMe =
             /^nvme\d+$/.test(dev) &&
             PVE.Parser.parseBoolean(PVE.Parser.parseQemuDrive(dev, value)?.detached);

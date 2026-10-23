@@ -12,7 +12,7 @@ Ext.define('PVE.Utils', {
 
         toolkit: undefined, // (extjs|touch), set inside Toolkit.js
 
-        bus_match: /^(ide|sata|virtio|scsi|nvme|emmc|sdcard)(\d+)$/,
+        bus_match: /^(ide|sata|virtio|scsi|nvme|usbdisk|emmc|sdcard)(\d+)$/,
 
         log_severity_hash: {
             0: 'panic',
@@ -1757,6 +1757,7 @@ Ext.define('PVE.Utils', {
             scsi: 31,
             virtio: 16,
             nvme: 16,
+            usbdisk: 8,
             emmc: 4,
             sdcard: 4,
             unused: 256,
@@ -2085,6 +2086,7 @@ Ext.define('PVE.Utils', {
                 'scsi',
                 'sata',
                 'nvme',
+                'usbdisk',
                 'emmc',
                 'sdcard',
             ];

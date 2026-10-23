@@ -36,7 +36,7 @@ Ext.define('PVE.qemu.CreateWizard', {
         if (values.ide0 && values.ide0.match(/media=cdrom/)) {
             let disk;
             PVE.Utils.forEachBus(
-                ['ide', 'scsi', 'virtio', 'sata', 'nvme'],
+                ['ide', 'scsi', 'virtio', 'sata', 'nvme', 'usbdisk'],
                 (type, id) => {
                     let confId = type + id;
                     if (!values[confId]) {

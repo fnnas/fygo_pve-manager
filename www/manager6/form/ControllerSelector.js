@@ -4,6 +4,7 @@ Ext.define('PVE.form.ControllerSelector', {
 
     withVirtIO: true,
     withNVMe: true,
+    withUSB: true,
     withEMMC: true,
     withSDCard: true,
     withUnused: false,
@@ -39,6 +40,8 @@ Ext.define('PVE.form.ControllerSelector', {
         let me = this;
         me.vmconfig = Ext.apply({}, vmconfig);
 
+        const arch = PVE.qemu.Architecture.getGuestArchitecture(vmconfig.arch, me.nodename);
+        me.down('field[name=controller]').setCategory(arch);
         me.down('field[name=deviceid]').validate();
     },
 
@@ -98,6 +101,7 @@ Ext.define('PVE.form.ControllerSelector', {
                     value: PVE.qemu.OSDefaults.getDefaults().busType,
                     withVirtIO: me.withVirtIO,
                     withNVMe: me.withNVMe,
+                    withUSB: me.withUSB,
                     withEMMC: me.withEMMC,
                     withSDCard: me.withSDCard,
                     withUnused: me.withUnused,

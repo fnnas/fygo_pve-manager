@@ -39,6 +39,7 @@ Ext.define('PVE.qemu.CIDriveInputPanel', {
                 xtype: 'pveControllerSelector',
                 withVirtIO: false,
                 withNVMe: false,
+                withUSB: false,
                 withEMMC: false,
                 withSDCard: false,
                 itemId: 'drive',

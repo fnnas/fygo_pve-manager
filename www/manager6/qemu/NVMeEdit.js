@@ -260,7 +260,7 @@ Ext.define('PVE.qemu.NVMe', {
             // Keep identity overrides only on buses whose drive schemas accept them.
             if (!isNVMe) {
                 const supportedIdentity =
-                    (name === 'serial' && /^(ide|sata|scsi|virtio)\d+$/.test(confid)) ||
+                    (name === 'serial' && /^(ide|sata|scsi|virtio|usbdisk)\d+$/.test(confid)) ||
                     (name === 'model' && /^ide\d+$/.test(confid));
                 if (!supportedIdentity) {
                     delete drive[name];

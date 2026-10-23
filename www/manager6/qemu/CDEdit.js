@@ -71,6 +71,7 @@ Ext.define('PVE.qemu.CDInputPanel', {
             me.bussel = Ext.create('PVE.form.ControllerSelector', {
                 withVirtIO: false,
                 withNVMe: false,
+                withUSB: false,
                 withEMMC: false,
                 withSDCard: false,
                 nodename: me.nodename,

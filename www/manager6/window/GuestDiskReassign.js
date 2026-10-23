@@ -82,9 +82,25 @@ Ext.define('PVE.window.GuestDiskReassign', {
             let me = this;
             let view = me.getView();
             let diskSelector = view.lookup('diskSelector');
+            const generation = (me.targetConfigGeneration || 0) + 1;
+            me.targetConfigGeneration = generation;
+            const isCurrent = () =>
+                !view.destroyed && !view.destroying && me.targetConfigGeneration === generation;
+            view.lookup('targetConfigLoaded').setValue('');
+
+            // A new target must not be submitted with the previous target's
+            // free slots. Late responses must not restore that stale selection.
+            if (view.qemu) {
+                diskSelector.setDisabled(true);
+            } else {
+                view.VMConfig = {};
+                view.lookup('mpType').setDisabled(true);
+                view.lookup('mpIdSelector').setDisabled(true);
+            }
             if (!vmid) {
-                diskSelector.setVMConfig(null);
-                me.VMConfig = null;
+                if (view.qemu) {
+                    diskSelector.setVMConfig({});
+                }
                 return;
             }
 
@@ -92,8 +108,15 @@ Ext.define('PVE.window.GuestDiskReassign', {
             Proxmox.Utils.API2Request({
                 url: url,
                 method: 'GET',
-                failure: (response) => Ext.Msg.alert(gettext('Error'), response.htmlStatus),
+                failure: (response) => {
+                    if (isCurrent()) {
+                        Ext.Msg.alert(gettext('Error'), response.htmlStatus);
+                    }
+                },
                 success: function ({ result }, options) {
+                    if (!isCurrent()) {
+                        return;
+                    }
                     if (view.qemu) {
                         diskSelector.setVMConfig(result.data);
                         diskSelector.setDisabled(false);
@@ -114,6 +137,7 @@ Ext.define('PVE.window.GuestDiskReassign', {
                         mpIdSelector.setDisabled(false);
                         mpIdSelector.validate();
                     }
+                    view.lookup('targetConfigLoaded').setValue('ready');
                 },
             });
         },
@@ -163,6 +187,13 @@ Ext.define('PVE.window.GuestDiskReassign', {
                 ],
             },
             listeners: { change: 'onTargetVMChange' },
+        },
+        {
+            xtype: 'textfield',
+            reference: 'targetConfigLoaded',
+            hidden: true,
+            submitValue: false,
+            allowBlank: false,
         },
         {
             xtype: 'pveControllerSelector',

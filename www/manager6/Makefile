@@ -3,6 +3,7 @@ include ../../defines.mk
 BIOME ?= proxmox-biome
 
 JSSRC= 							\
+	locale/DiskLimits.js				\
 	locale/EMMC.js					\
 	locale/SDCard.js					\
 	locale/NVMe.js					\
