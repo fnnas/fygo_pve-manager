@@ -18,6 +18,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             isSCSI: false,
             isVirtIO: false,
             isSCSISingle: false,
+            isNVMe: false,
         },
     },
 
@@ -31,6 +32,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             let value = field.getValue();
             vm.set('isSCSI', value.match(/^scsi/));
             vm.set('isVirtIO', value.match(/^virtio/));
+            vm.set('isNVMe', value.match(/^nvme/));
 
             me.fireIdChange();
         },
@@ -64,6 +66,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             if (view.confid) {
                 vm.set('isSCSI', view.confid.match(/^scsi/));
                 vm.set('isVirtIO', view.confid.match(/^virtio/));
+                vm.set('isNVMe', view.confid.match(/^nvme/));
             }
         },
     },
@@ -316,6 +319,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 fieldLabel: gettext('Discard'),
                 reference: 'discard',
                 name: 'discard',
+                bind: {
+                    disabled: '{isNVMe}',
+                },
             },
             {
                 xtype: 'proxmoxcheckbox',
@@ -342,7 +348,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 name: 'ssd',
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{isVirtIO}',
+                    disabled: '{isVirtIO || isNVMe}',
                 },
             },
             {
@@ -387,6 +393,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
                     ['native', 'native'],
                     ['threads', 'threads'],
                 ],
+                bind: {
+                    disabled: '{isNVMe}',
+                },
             },
         );
 
