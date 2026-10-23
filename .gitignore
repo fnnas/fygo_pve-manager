@@ -11,3 +11,4 @@ dest/
 /pve-manager-[0-9]*/
 /test/.mocked_*
 /test/*.tmp
+/.idea/
