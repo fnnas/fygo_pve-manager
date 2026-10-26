@@ -8,9 +8,11 @@ Ext.define('PVE.qemu.SystemInputPanel', {
         data: {
             efi: false,
             addefi: true,
+            machineType: '__default__',
         },
 
         formulas: {
+            custom: (get) => get('machineType') === '__custom__',
             efidisk: function (get) {
                 return get('efi') && get('addefi');
             },
@@ -18,6 +20,13 @@ Ext.define('PVE.qemu.SystemInputPanel', {
     },
 
     onGetValues: function (values) {
+        if (values.machine === '__custom__') {
+            values.machine = values.custom_machine;
+            if (!PVE.qemu.Architecture.getCustomMachine(values.machine)) {
+                throw gettext('No custom machine is available on this node.');
+            }
+        }
+        delete values.custom_machine;
         if (values.vga && values.vga.substr(0, 6) === 'serial') {
             values['serial' + values.vga.substr(6, 1)] = 'socket';
         }
@@ -95,7 +104,27 @@ Ext.define('PVE.qemu.SystemInputPanel', {
             fieldLabel: gettext('Machine'),
             bind: {
                 category: '{current.architecture}',
+                value: '{machineType}',
             },
+        },
+        {
+            xtype: 'pveQemuCustomMachineSelector',
+            name: 'custom_machine',
+            hidden: true,
+            disabled: true,
+            bind: {
+                nodename: '{nodename}',
+                arch: '{current.architecture}',
+                hidden: '{!custom}',
+                disabled: '{!custom}',
+            },
+        },
+        {
+            xtype: 'displayfield',
+            userCls: 'pmx-hint',
+            value: PVE.qemu.Architecture.customMachineHint,
+            hidden: true,
+            bind: { hidden: '{!custom}' },
         },
         {
             xtype: 'displayfield',
