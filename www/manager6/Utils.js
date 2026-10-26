@@ -541,7 +541,8 @@ Ext.define('PVE.Utils', {
                 let machineText = machineTextMap[machine] ?? machine;
                 return `${Proxmox.Utils.defaultText} (${machineText})`;
             }
-            return value;
+            let custom = PVE.qemu.Architecture.getCustomMachine(value);
+            return custom ? `${gettext('Custom')} (${custom.name})` : value;
         },
 
         render_qemu_bios: function (value, arch = 'x86_64') {
@@ -1783,6 +1784,9 @@ Ext.define('PVE.Utils', {
 
         // we can have usb6 and up only for specific machine/ostypes
         get_max_usb_count: function (ostype, machine) {
+            if (PVE.qemu.Architecture.getCustomMachine(machine)) {
+                return PVE.Utils.hardware_counts.usb;
+            }
             if (!ostype) {
                 return PVE.Utils.hardware_counts.usb_old;
             }

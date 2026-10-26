@@ -53,9 +53,30 @@ Ext.define('PVE.qemu.Architecture', {
     },
 
     allowedMachines: {
-        x86_64: ['__default__', 'q35'], // __default__ is i440fx
+        x86_64: ['__default__', 'q35', '__custom__'], // __default__ is i440fx
         aarch64: ['__default__'], // __default__ is virt
     },
+
+    customMachines: {
+        'azw-me-pro-6': { name: 'azw-me-pro', base: 'q35', version: '11.0' },
+    },
+
+    getCustomMachine: function (machine) {
+        let type = PVE.Parser.parsePropertyString(machine, 'type')?.type;
+        return PVE.qemu.Architecture.customMachines[type?.replace(/\+pve0$/, '')];
+    },
+
+    isQ35Machine: function (machine) {
+        let type = PVE.Parser.parsePropertyString(machine, 'type')?.type;
+        return (
+            !!type?.includes('q35') ||
+            PVE.qemu.Architecture.getCustomMachine(machine)?.base === 'q35'
+        );
+    },
+
+    customMachineHint: gettext(
+        'azw-me-pro uses a fixed Q35 platform with NVMe controller slots nvme0 to nvme2 and six shared SATA/IDE ports. Requires the matching custom QEMU. UEFI is recommended.',
+    ),
 
     allowedBusses: {
         x86_64: ['ide', 'sata', 'virtio', 'scsi', 'nvme', 'usbdisk', 'emmc', 'unused'],

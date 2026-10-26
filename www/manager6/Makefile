@@ -5,6 +5,7 @@ BIOME ?= proxmox-biome
 JSSRC= 							\
 	locale/EMMC.js					\
 	locale/NVMe.js					\
+	locale/CustomMachine.js				\
 	Parser.js					\
 	StateProvider.js				\
 	qemu/Architecture.js				\
@@ -69,6 +70,7 @@ JSSRC= 							\
 	form/PrivilegesSelector.js			\
 	form/QemuBiosSelector.js			\
 	form/QemuMachineSelector.js			\
+	form/QemuCustomMachineSelector.js			\
 	form/RecordSearchField.js			\
 	form/SDNControllerSelector.js			\
 	form/SDNZoneSelector.js				\

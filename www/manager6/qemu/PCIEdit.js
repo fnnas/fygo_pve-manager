@@ -36,7 +36,7 @@ Ext.define('PVE.qemu.PCIInputPanel', {
             values.rombar = PVE.Parser.parseBoolean(values.rombar, 1);
 
             view.setValues(values);
-            if (!me.vmconfig.machine || me.vmconfig.machine.indexOf('q35') === -1) {
+            if (!PVE.qemu.Architecture.isQ35Machine(me.vmconfig.machine)) {
                 // machine is not set to some variant of q35, so we disable pcie
                 let pcie = me.lookup('pcie');
                 pcie.setDisabled(true);

@@ -5,6 +5,7 @@ Ext.define('PVE.form.QemuMachineSelector', {
     comboItems: [
         ['__default__', PVE.Utils.render_qemu_machine('')],
         ['q35', 'q35'],
+        ['__custom__', gettext('Custom')],
     ],
 
     allowedValuesPerCategory: PVE.qemu.Architecture.allowedMachines,

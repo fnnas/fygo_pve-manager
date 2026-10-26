@@ -8,7 +8,8 @@ Ext.define('PVE.qemu.MachineInputPanel', {
             type: '__default__',
         },
         formulas: {
-            q35: (get) => get('type') === 'q35',
+            custom: (get) => get('type') === '__custom__',
+            q35: (get) => get('type') === 'q35' || get('type') === '__custom__',
         },
     },
 
@@ -19,8 +20,11 @@ Ext.define('PVE.qemu.MachineInputPanel', {
                 change: 'onMachineChange',
             },
         },
-        onMachineChange: function (field, value) {
+        onMachineChange: function (field, value, oldValue) {
             let me = this;
+            if (value === '__custom__') {
+                return;
+            }
             let version = me.lookup('version');
             let store = version.getStore();
 
@@ -31,14 +35,35 @@ Ext.define('PVE.qemu.MachineInputPanel', {
             if (!me.getView().isWindows) {
                 version.setValue('latest');
             } else {
-                if (!oldRec) {
+                let custom =
+                    oldValue === '__custom__'
+                        ? PVE.qemu.Architecture.getCustomMachine(
+                              me.lookup('customMachine').getValue() ||
+                                  me.getView().machineConfig?.type,
+                          )
+                        : undefined;
+                let oldVers = oldRec?.data.version ?? custom?.version;
+                if (!oldVers) {
                     return;
                 }
-                let oldVers = oldRec.data.version;
-                // we already filtered by correct type, so just check version property
-                let rec = store.findRecord('version', oldVers, 0, false, false, true);
-                if (rec) {
-                    version.select(rec);
+                const selectVersion = () => {
+                    if (me.destroyed || me.getView().destroyed || field.getValue() !== value) {
+                        return;
+                    }
+                    // The store is already filtered by the selected base type.
+                    let rec = store.findRecord('version', oldVers, 0, false, false, true);
+                    if (!rec && custom) {
+                        rec = store.getRange().find((entry) => entry.data.id !== 'latest');
+                    }
+                    if (rec) {
+                        version.select(rec);
+                    } else if (custom) {
+                        version.setValue(null);
+                    }
+                };
+                selectVersion();
+                if (store.isLoading() || store.hasPendingLoad()) {
+                    me.mon(store, 'load', selectVersion, undefined, { single: true });
                 }
             }
         },
@@ -61,6 +86,12 @@ Ext.define('PVE.qemu.MachineInputPanel', {
         setArch: function (arch) {
             let me = this;
             let store = me.lookup('version').getStore();
+            let nodename = me.getViewModel().get('nodename');
+            store
+                .getProxy()
+                .setUrl(
+                    `/api2/json/nodes/${encodeURIComponent(nodename)}/capabilities/qemu/machines`,
+                );
             store.getProxy().setExtraParams({
                 arch,
             });
@@ -72,14 +103,32 @@ Ext.define('PVE.qemu.MachineInputPanel', {
         // arch is a hidden field used only for the machine-default lookup; do not submit it.
         let arch = values.arch;
         delete values.arch;
+        let extra = { ...this.machineConfig };
+        delete extra.type;
+        delete extra.viommu;
+        if (values.viommu !== this.machineConfig?.viommu) {
+            delete extra['aw-bits'];
+        }
+        if (values.delete === 'machine' && Object.keys(extra).length) {
+            delete values.delete;
+            values.machine = PVE.qemu.Architecture.defaultMachines[arch];
+        }
+        Object.assign(values, extra);
         if (values.delete === 'machine' && values.viommu) {
             delete values.delete;
             values.machine = PVE.qemu.Architecture.defaultMachines[arch];
         }
-        if (values.version && values.version !== 'latest') {
+        if (values.machine === '__custom__') {
+            values.machine = values.custom_machine;
+            if (!PVE.qemu.Architecture.getCustomMachine(values.machine)) {
+                throw gettext('No custom machine is available on this node.');
+            }
+            delete values.delete;
+        } else if (values.version && values.version !== 'latest') {
             values.machine = values.version;
             delete values.delete;
         }
+        delete values.custom_machine;
         delete values.version;
         if (values.delete === 'machine' && !values.viommu) {
             return values;
@@ -93,7 +142,15 @@ Ext.define('PVE.qemu.MachineInputPanel', {
         let me = this;
 
         let machineConf = PVE.Parser.parsePropertyString(values.machine, 'type');
+        me.machineConfig = machineConf;
         values.machine = machineConf.type;
+        me.getViewModel().set('nodename', values.nodename);
+
+        let custom = PVE.qemu.Architecture.getCustomMachine(values.machine);
+        if (custom) {
+            values.custom_machine = values.machine.replace(/\+pve0$/, '');
+            values.machine = '__custom__';
+        }
 
         let defaultMachine = PVE.qemu.Architecture.defaultMachines[values.arch];
         me.isWindows = values.isWindows;
@@ -117,7 +174,7 @@ Ext.define('PVE.qemu.MachineInputPanel', {
 
         values.viommu = machineConf.viommu || '__default__';
 
-        if (values.machine !== '__default__' && values.machine !== 'q35') {
+        if (!custom && values.machine !== '__default__' && values.machine !== 'q35') {
             values.version = values.machine;
             values.machine = values.version.match(/q35/) ? 'q35' : '__default__';
 
@@ -143,6 +200,26 @@ Ext.define('PVE.qemu.MachineInputPanel', {
             },
         },
         {
+            xtype: 'pveQemuCustomMachineSelector',
+            name: 'custom_machine',
+            reference: 'customMachine',
+            hidden: true,
+            disabled: true,
+            bind: {
+                nodename: '{nodename}',
+                arch: '{arch}',
+                hidden: '{!custom}',
+                disabled: '{!custom}',
+            },
+        },
+        {
+            xtype: 'displayfield',
+            userCls: 'pmx-hint',
+            value: PVE.qemu.Architecture.customMachineHint,
+            hidden: true,
+            bind: { hidden: '{!custom}' },
+        },
+        {
             xtype: 'hidden',
             name: 'arch',
             reference: 'arch',
@@ -159,11 +236,15 @@ Ext.define('PVE.qemu.MachineInputPanel', {
             emptyText: gettext('Latest'),
             value: 'latest',
             editable: false,
+            bind: {
+                hidden: '{custom}',
+                disabled: '{custom}',
+            },
             valueField: 'id',
             displayField: 'version',
             queryParam: false,
             store: {
-                autoLoad: true,
+                autoLoad: false,
                 fields: ['id', 'type', 'version'],
                 proxy: {
                     type: 'proxmox',
@@ -270,6 +351,7 @@ Ext.define('PVE.qemu.MachineEdit', {
                 let conf = response.result.data;
                 let values = {
                     machine: conf.machine || '__default__',
+                    nodename: me.nodename,
                 };
                 values.isWindows = PVE.Utils.is_windows(conf.ostype);
                 values.arch = PVE.qemu.Architecture.getGuestArchitecture(conf.arch, me.nodename);

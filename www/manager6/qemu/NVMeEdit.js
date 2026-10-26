@@ -241,6 +241,11 @@ Ext.define('PVE.qemu.NVMe', {
             owner !== null &&
             owner !== '' &&
             `nvme${Number(owner)}` !== confid;
+        // Partial restores keep a controller's physical slot independently of
+        // its namespace disk ID. Preserve it while editing the owner.
+        if (!isNVMe || child) {
+            delete drive['nvme-slot'];
+        }
         const enabled = {};
         const wasEnabled = {};
         for (const [name, feature] of Object.entries(me.features)) {
