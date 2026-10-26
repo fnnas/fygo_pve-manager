@@ -3,6 +3,7 @@ Ext.define('PVE.form.ControllerSelector', {
     alias: 'widget.pveControllerSelector',
 
     withVirtIO: true,
+    withNVMe: true,
     withUSB: true,
     withEMMC: true,
     withUnused: false,
@@ -59,7 +60,7 @@ Ext.define('PVE.form.ControllerSelector', {
                 deviceid.setValue(id);
                 return;
             }
-            clist = ['ide', 'scsi', 'sata', 'nvme'];
+            clist = ['ide', 'scsi', 'sata'];
         } else {
             // in most cases we want to add a disk to the same controller we previously used
             clist = PVE.Utils.sortByPreviousUsage(me.vmconfig, me.nodename);
@@ -96,6 +97,7 @@ Ext.define('PVE.form.ControllerSelector', {
                     itemId: 'controller',
                     value: PVE.qemu.OSDefaults.getDefaults().busType,
                     withVirtIO: me.withVirtIO,
+                    withNVMe: me.withNVMe,
                     withUSB: me.withUSB,
                     withEMMC: me.withEMMC,
                     withUnused: me.withUnused,

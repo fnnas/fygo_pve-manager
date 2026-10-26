@@ -67,8 +67,11 @@ Ext.define('PVE.qemu.BootOrderPanel', {
     },
 
     isBootdev: function (dev, value) {
+        const detachedNVMe =
+            /^nvme\d+$/.test(dev) &&
+            PVE.Parser.parseBoolean(PVE.Parser.parseQemuDrive(dev, value)?.detached);
         return (
-            (this.isDisk(dev) && !/^emmc/.test(dev) && !this.isCloudinit(value)) ||
+            (this.isDisk(dev) && !/^emmc/.test(dev) && !detachedNVMe && !this.isCloudinit(value)) ||
             /^net\d+/.test(dev) ||
             /^hostpci\d+/.test(dev) ||
             (/^usb\d+/.test(dev) && !/spice/.test(value))
@@ -85,7 +88,10 @@ Ext.define('PVE.qemu.BootOrderPanel', {
 
         let bootorder = [];
         if (boot.order) {
-            bootorder = boot.order.split(';').map((dev) => ({ name: dev, enabled: true }));
+            bootorder = boot.order
+                .split(';')
+                .filter((dev) => me.isBootdev(dev, me.vmconfig[dev] || ''))
+                .map((dev) => ({ name: dev, enabled: true }));
         } else if (!/^\s*$/.test(me.vmconfig.boot)) {
             // legacy style, transform to new bootorder
             let order = boot.legacy || 'cdn';
@@ -127,6 +133,9 @@ Ext.define('PVE.qemu.BootOrderPanel', {
         }
 
         // add disabled devices as well
+        bootorder = bootorder.filter((entry) =>
+            me.isBootdev(entry.name, me.vmconfig[entry.name] || ''),
+        );
         let disabled = [];
         Ext.Object.each(me.vmconfig, function (key, value) {
             if (me.isBootdev(key, value) && !Ext.Array.some(bootorder, (x) => x.name === key)) {

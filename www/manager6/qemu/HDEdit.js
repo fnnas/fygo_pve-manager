@@ -21,6 +21,15 @@ Ext.define('PVE.qemu.HDInputPanel', {
             isVirtIO: false,
             isSCSISingle: false,
             isNVMe: false,
+            nvmeIsChild: false,
+            nvmeZoned: false,
+            nvmeFDP: false,
+            nvmeCMB: false,
+            nvmeMultipath: false,
+            nvmeCopy: false,
+            nvmeMetadata: false,
+            nvmeProtection: false,
+            nvmeSRIOV: false,
             isUSB: false,
             isEMMC: false,
         },
@@ -46,6 +55,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         fireIdChange: function () {
             let view = this.getView();
             view.fireEvent('diskidchange', view, view.bussel.getConfId());
+            view.lookup('nvmeOwner')?.fireEvent('change');
         },
 
         control: {
@@ -148,6 +158,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             emmcOptions.forEach((name) => delete me.drive[name]);
         }
 
+        PVE.qemu.NVMe.applyValues(me.drive, values, confid);
         params[confid] = PVE.Parser.printQemuDrive(me.drive);
 
         return params;
@@ -157,6 +168,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         var me = this;
         me.vmconfig = vmconfig;
         me.bussel?.updateVMConfig(vmconfig);
+        me.updateNVMeControllers();
     },
 
     setVMConfig: function (vmconfig) {
@@ -178,6 +190,39 @@ Ext.define('PVE.qemu.HDInputPanel', {
             me.unusedDisks.store.loadData(disklist);
             me.unusedDisks.setValue(me.confid);
         }
+        me.updateNVMeControllers();
+    },
+
+    updateNVMeControllers: function () {
+        const me = this;
+        const wizard = me.insideWizard ? me.up('pveMultiHDPanel') : undefined;
+        // The wizard maps disk names to card IDs, not serialized drive options.
+        const vmconfig = wizard ? wizard.getController().getVMConfig(true) : me.vmconfig;
+        const nvmeControllers = [['__default__', gettext('Dedicated controller')]];
+        Object.entries(vmconfig).forEach(([id, value]) => {
+            if (!/^nvme\d+$/.test(id)) {
+                return;
+            }
+            const panel = wizard?.getComponent(value);
+            if (wizard && (!panel || panel === me)) {
+                return;
+            }
+            const drive = panel
+                ? { 'nvme-controller': panel.lookup('nvmeOwner')?.getValue() }
+                : PVE.Parser.parseQemuDrive(id, value);
+            const owner = drive?.['nvme-controller'];
+            const index = id.slice(4);
+            if (
+                drive &&
+                (owner === undefined ||
+                    owner === null ||
+                    owner === '' ||
+                    Number(owner) === Number(index))
+            ) {
+                nvmeControllers.push([index, id]);
+            }
+        });
+        me.lookup('nvmeOwner')?.setComboItems(nvmeControllers);
     },
 
     setDrive: function (drive) {
@@ -218,6 +263,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.emmcBoot = String((bootConfig >> 3) & 7);
         values.emmcBootAck = !!(bootConfig & 64);
         values.emmcAuthKey = drive['auth-key'] || '';
+        Object.assign(values, PVE.qemu.NVMe.loadValues(drive));
 
         values.mbps_rd = drive.mbps_rd;
         values.mbps_wr = drive.mbps_wr;
@@ -379,7 +425,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 reference: 'discard',
                 name: 'discard',
                 bind: {
-                    disabled: '{isNVMe || isEMMC}',
+                    disabled: '{isEMMC}',
                 },
             },
             {
@@ -417,7 +463,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 fieldLabel: gettext('Read-only'),
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{!isVirtIO && !isSCSI && !isUSB}',
+                    disabled: '{!isVirtIO && !isSCSI && !isUSB && !isNVMe}',
                 },
             },
             {
@@ -462,9 +508,6 @@ Ext.define('PVE.qemu.HDInputPanel', {
                     ['native', 'native'],
                     ['threads', 'threads'],
                 ],
-                bind: {
-                    disabled: '{isNVMe}',
-                },
             },
         );
 
@@ -582,6 +625,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
         me.items = [
             {
                 xtype: 'tabpanel',
+                // Initialize field bindings before validation and submission,
+                // even when their device options tab has not been opened.
+                deferredRender: false,
                 plain: true,
                 bodyPadding: 10,
                 border: 0,
@@ -622,8 +668,13 @@ Ext.define('PVE.qemu.HDInputPanel', {
                                     ['2', 'BOOT2'],
                                     ['7', gettext('User area')],
                                 ],
-                                validator: (value) =>
-                                    needsPartition(value === '1' || value === '2', 'emmcBootSize'),
+                                validator: function () {
+                                    const value = this.getValue();
+                                    return needsPartition(
+                                        value === '1' || value === '2',
+                                        'emmcBootSize',
+                                    );
+                                },
                                 bind: { disabled: '{!isEMMC}' },
                             },
                         ],
@@ -640,11 +691,13 @@ Ext.define('PVE.qemu.HDInputPanel', {
                                     ['2', 'BOOT2'],
                                     ['3', 'RPMB'],
                                 ],
-                                validator: (value) =>
-                                    needsPartition(
+                                validator: function () {
+                                    const value = this.getValue();
+                                    return needsPartition(
                                         value !== '0',
                                         value === '3' ? 'emmcRpmbSize' : 'emmcBootSize',
-                                    ),
+                                    );
+                                },
                                 bind: { disabled: '{!isEMMC}' },
                             },
                             {
@@ -696,6 +749,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                         ],
                         getValues: () => ({}),
                     },
+                    PVE.qemu.NVMe.createPanel(me),
                     {
                         title: gettext('Bandwidth'),
                         xtype: 'inputpanel',
