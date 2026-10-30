@@ -72,6 +72,7 @@ Ext.define('PVE.qemu.CDInputPanel', {
                 withVirtIO: false,
                 withNVMe: false,
                 withEMMC: false,
+                withSDCard: false,
                 nodename: me.nodename,
             });
             items.push(me.bussel);

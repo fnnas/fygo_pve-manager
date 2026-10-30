@@ -4,6 +4,7 @@ BIOME ?= proxmox-biome
 
 JSSRC= 							\
 	locale/EMMC.js					\
+	locale/SDCard.js					\
 	locale/NVMe.js					\
 	locale/CustomMachine.js				\
 	Parser.js					\
@@ -268,6 +269,7 @@ JSSRC= 							\
 	qemu/CreateWizard.js				\
 	qemu/DisplayEdit.js				\
 	qemu/NVMeEdit.js					\
+	qemu/SDCardEdit.js				\
 	qemu/HDEdit.js					\
 	qemu/HDEfi.js					\
 	qemu/HDTPM.js					\

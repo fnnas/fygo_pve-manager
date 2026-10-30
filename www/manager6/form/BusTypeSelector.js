@@ -5,6 +5,7 @@ Ext.define('PVE.form.BusTypeSelector', {
     withVirtIO: true,
     withNVMe: true,
     withEMMC: true,
+    withSDCard: true,
     withUnused: false,
 
     allowedValuesPerCategory: PVE.qemu.Architecture.allowedBusses,
@@ -29,6 +30,9 @@ Ext.define('PVE.form.BusTypeSelector', {
 
         if (me.withEMMC) {
             me.comboItems.push(['emmc', 'eMMC']);
+        }
+        if (me.withSDCard) {
+            me.comboItems.push(['sdcard', gettext('SD card')]);
         }
 
         if (me.withUnused) {

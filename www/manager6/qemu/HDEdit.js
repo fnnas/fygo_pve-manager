@@ -31,6 +31,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             nvmeProtection: false,
             nvmeSRIOV: false,
             isEMMC: false,
+            isSDCard: false,
         },
     },
 
@@ -46,6 +47,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             vm.set('isVirtIO', value.match(/^virtio/));
             vm.set('isNVMe', value.match(/^nvme/));
             vm.set('isEMMC', value.match(/^emmc/));
+            vm.set('isSDCard', value.match(/^sdcard/));
 
             me.getView().updateEMMCDiskSizeField();
             me.fireIdChange();
@@ -83,6 +85,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 vm.set('isVirtIO', view.confid.match(/^virtio/));
                 vm.set('isNVMe', view.confid.match(/^nvme/));
                 vm.set('isEMMC', view.confid.match(/^emmc/));
+                vm.set('isSDCard', view.confid.match(/^sdcard/));
             }
         },
     },
@@ -198,6 +201,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             emmcOptions.forEach((name) => delete me.drive[name]);
         }
 
+        PVE.qemu.SDCard.applyValues(me.drive, values, confid);
         PVE.qemu.NVMe.applyValues(me.drive, values, confid);
         params[confid] = PVE.Parser.printQemuDrive(me.drive);
 
@@ -303,6 +307,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.emmcBootAck = !!(bootConfig & 64);
         values.emmcAuthKey = drive['auth-key'] || '';
         values.emmcCid = drive.cid || '';
+        Object.assign(values, PVE.qemu.SDCard.loadValues(drive));
         Object.assign(values, PVE.qemu.NVMe.loadValues(drive));
 
         values.mbps_rd = drive.mbps_rd;
@@ -465,7 +470,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 reference: 'discard',
                 name: 'discard',
                 bind: {
-                    disabled: '{isEMMC}',
+                    disabled: '{isEMMC || isSDCard}',
                 },
             },
             {
@@ -493,7 +498,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 name: 'ssd',
                 clearOnDisable: true,
                 bind: {
-                    disabled: '{isVirtIO || isNVMe || isEMMC}',
+                    disabled: '{isVirtIO || isNVMe || isEMMC || isSDCard}',
                 },
             },
             {
@@ -810,6 +815,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                         ],
                         getValues: () => ({}),
                     },
+                    PVE.qemu.SDCard.createPanel(),
                     PVE.qemu.NVMe.createPanel(me),
                     {
                         title: gettext('Bandwidth'),
