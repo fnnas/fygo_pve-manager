@@ -342,6 +342,7 @@ Ext.define('PVE.qemu.Options', {
                           items: {
                               xtype: 'pveSpiceEnhancementSelector',
                               name: 'spice_enhancements',
+                              nodename: nodename,
                           },
                       }
                     : undefined,

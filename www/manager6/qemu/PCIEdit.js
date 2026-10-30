@@ -29,11 +29,19 @@ Ext.define('PVE.qemu.PCIInputPanel', {
             } else if (values.mapping) {
                 values.type = 'mapped';
             }
+            me.configuredMDev = values.mdev
+                ? {
+                      selector: values.type === 'raw' ? 'selector' : 'mapped_selector',
+                      value: values.host || values.mapping,
+                  }
+                : undefined;
             vm.set('isMapped', values.type !== 'raw');
 
             values['x-vga'] = PVE.Parser.parseBoolean(values['x-vga'], 0);
             values.pcie = PVE.Parser.parseBoolean(values.pcie, 0);
             values.rombar = PVE.Parser.parseBoolean(values.rombar, 1);
+            values.display = PVE.Parser.parseBoolean(values.display, 0);
+            values.ramfb = PVE.Parser.parseBoolean(values.ramfb, 0);
 
             view.setValues(values);
             if (!PVE.qemu.Architecture.isQ35Machine(me.vmconfig.machine)) {
@@ -53,8 +61,30 @@ Ext.define('PVE.qemu.PCIInputPanel', {
             me.pciDevChange(selector, selector.getValue());
         },
 
+        updateAllFunctions: function () {
+            let me = this;
+            let mdev = me.lookup('mdev');
+            let hasMDev = !mdev.isDisabled() && !!mdev.getValue();
+            me.getViewModel().set('hasMDev', hasMDev);
+            if (hasMDev) {
+                me.lookup('all_functions').setValue(false);
+            }
+        },
+
+        validateDisplayDevice: function () {
+            let me = this;
+            let field = me.lookup('display');
+            if (field) {
+                field.validate();
+            }
+            me.getView().down('[name=ramfb]')?.validate();
+        },
+
         pciDevChange: function (pcisel, value) {
             let me = this;
+            if (pcisel.isDisabled()) {
+                return;
+            }
             let mdevfield = me.lookup('mdev');
             if (!value) {
                 if (!pcisel.isDisabled()) {
@@ -63,8 +93,15 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                 return;
             }
             let pciDev = pcisel.getStore().getById(value);
+            me.validateDisplayDevice();
 
-            mdevfield.setDisabled(!pciDev || !pciDev.data.mdev);
+            // Keep an existing profile editable when host support is temporarily unavailable.
+            // Its store validates the profile, rather than silently dropping it during save.
+            let configuredMDev =
+                me.configuredMDev?.selector === pcisel.reference &&
+                me.configuredMDev.value === value;
+            let hasMDev = !!pciDev?.data.mdev || configuredMDev;
+            mdevfield.setDisabled(!hasMDev);
             if (!pciDev) {
                 return;
             }
@@ -74,7 +111,7 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                 path = pciDev.data.id;
             }
 
-            if (pciDev.data.mdev) {
+            if (hasMDev) {
                 mdevfield.setPciIdOrMapping(path);
             }
             if (pcisel.reference === 'selector') {
@@ -113,8 +150,8 @@ Ext.define('PVE.qemu.PCIInputPanel', {
 
             if (values.multifunction && values.host) {
                 values.host = values.host.substring(0, values.host.indexOf('.')); // skip the '.X'
-                delete values.multifunction;
             }
+            delete values.multifunction;
 
             if (values.rombar) {
                 delete values.rombar;
@@ -125,8 +162,22 @@ Ext.define('PVE.qemu.PCIInputPanel', {
             if (!values.romfile) {
                 delete values.romfile;
             }
+            if (!values.display) {
+                delete values.display;
+                delete values.ramfb;
+            } else if (!values.ramfb) {
+                delete values.ramfb;
+            }
 
             delete values.type;
+
+            // Keep options configured outside this editor when replacing the property string.
+            let original = PVE.Parser.parsePropertyString(me.vmconfig[view.confid], 'host');
+            for (const key of ['legacy-igd', 'driver']) {
+                if (original?.[key] !== undefined) {
+                    values[key] = original[key];
+                }
+            }
 
             let ret = {};
             ret[view.confid] = PVE.Parser.printPropertyString(values, 'host');
@@ -137,6 +188,8 @@ Ext.define('PVE.qemu.PCIInputPanel', {
     viewModel: {
         data: {
             isMapped: true,
+            hasMDev: false,
+            consoleDisplay: false,
         },
     },
 
@@ -232,6 +285,7 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                     me.lookup('iommu_warning').setVisible(
                         records.every((val) => val.data.iommugroup === -1),
                     );
+                    me.getController().selectorEnable(me.lookup('selector'));
                 },
                 listeners: {
                     change: 'pciDevChange',
@@ -246,8 +300,9 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                 labelAlign: 'right',
                 name: 'multifunction',
                 bind: {
-                    disabled: '{isMapped}',
+                    disabled: '{isMapped || hasMDev}',
                 },
+                listeners: { change: 'validateDisplayDevice' },
             },
         ];
 
@@ -260,13 +315,70 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                 fieldLabel: gettext('MDev Type'),
                 nodename: me.nodename,
                 listeners: {
-                    change: function (field, value) {
-                        let multiFunction = me.down('field[name=multifunction]');
-                        if (value) {
-                            multiFunction.setValue(false);
-                        }
-                        multiFunction.setDisabled(!!value);
-                    },
+                    change: 'updateAllFunctions',
+                    enable: 'updateAllFunctions',
+                    disable: 'updateAllFunctions',
+                },
+            },
+            {
+                xtype: 'proxmoxcheckbox',
+                name: 'display',
+                reference: 'display',
+                fieldLabel: gettext('Console display'),
+                bind: { value: '{consoleDisplay}' },
+                listeners: { change: 'validateDisplayDevice' },
+                getErrors: function () {
+                    let errors = [];
+                    let config = me.getController().vmconfig || {};
+                    let original = PVE.Parser.parsePropertyString(config[me.confid], 'host');
+                    if (
+                        this.getValue() &&
+                        PVE.Parser.parseBoolean(original?.['legacy-igd'], false)
+                    ) {
+                        errors.push(
+                            gettext('Legacy IGD passthrough is incompatible with Console display.'),
+                        );
+                    }
+                    let selector = me.lookup('selector');
+                    let device = selector.getStore().getById(selector.getValue());
+                    let allFunctions = me.lookup('all_functions');
+                    if (allFunctions.getValue() && !allFunctions.isDisabled()) {
+                        // The backend displays the first function of the whole-slot assignment.
+                        let slot = selector.getValue()?.replace(/\.[0-9a-f]$/i, '');
+                        let functions = selector
+                            .getStore()
+                            .getRange()
+                            .filter((rec) => rec.data.id.startsWith(`${slot}.`))
+                            .sort((a, b) => a.data.id.localeCompare(b.data.id));
+                        device = functions[0] || device;
+                    }
+                    if (
+                        this.getValue() &&
+                        !selector.isDisabled() &&
+                        device?.data.class &&
+                        !/^0x03[0-9a-f]{4}$/i.test(device.data.class)
+                    ) {
+                        errors.push(gettext('Console display requires a graphics PCI device.'));
+                    }
+                    return errors;
+                },
+            },
+            {
+                xtype: 'proxmoxcheckbox',
+                name: 'ramfb',
+                fieldLabel: gettext('RAMFB boot display'),
+                bind: { disabled: '{!consoleDisplay}' },
+                getErrors: function () {
+                    if (!this.getValue() || !me.lookup('display').getValue()) {
+                        return [];
+                    }
+                    let config = { ...me.getController().vmconfig };
+                    // Use a free synthetic slot when adding a new assignment, without mutating confid.
+                    let confid = me.confid || 'hostpci' + PVE.Utils.hardware_counts.hostpci;
+                    config[confid] = 'display=1,ramfb=1';
+                    let arch = PVE.qemu.Architecture.getGuestArchitecture(config.arch, me.nodename);
+                    let valid = PVE.qemu.Architecture.validateDisplay(config, arch);
+                    return valid === true ? [] : [valid];
                 },
             },
             {
@@ -335,6 +447,23 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                 vtype: 'PciId',
                 allowBlank: true,
                 submitEmpty: false,
+            },
+        ];
+
+        me.columnB = [
+            {
+                xtype: 'displayfield',
+                userCls: 'pmx-hint',
+                value: gettext(
+                    'Console display is off by default. Enable it only on a GPU with VFIO display support, then set the VM display to Mediated/VFIO display. MDev Type selects an existing host vGPU profile; this does not enable unsupported hardware or drivers. Mapped devices and all alternatives are checked at startup.',
+                ),
+            },
+            {
+                xtype: 'displayfield',
+                userCls: 'pmx-hint',
+                value: gettext(
+                    'RAMFB boot display is off by default and requires Console display and compatible UEFI firmware. Enable it on at most one GPU for boot graphics before the guest GPU driver loads. Device hotplug is unavailable. Shut down and start the VM to apply changes; migration and snapshots remain subject to VFIO and driver restrictions.',
+                ),
             },
         ];
 

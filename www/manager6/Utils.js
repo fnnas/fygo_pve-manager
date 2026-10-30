@@ -657,7 +657,64 @@ Ext.define('PVE.Utils', {
             serial3: gettext('Serial terminal') + ' 3',
             virtio: 'VirtIO-GPU',
             'virtio-gl': 'VirGL GPU',
+            mdev: gettext('Mediated/VFIO display'),
+            ramfb: gettext('RAM framebuffer'),
+            cirrus: 'Cirrus CLGD 5446',
+            'bochs-display': gettext('Bochs (no VGA compatibility)'),
+            'ati-vga': 'ATI VGA',
+            'isa-vga': 'ISA VGA',
+            'isa-cirrus-vga': 'ISA Cirrus VGA',
+            'secondary-vga': gettext('Secondary VGA'),
+            'qxl-pci': gettext('QXL (no VGA compatibility)'),
+            'virtio-gpu-pci': gettext('VirtIO GPU (PCI, no VGA compatibility)'),
+            'virtio-gpu-gl-pci': gettext('VirGL GPU (PCI, no VGA compatibility)'),
+            'virtio-gpu-device': 'VirtIO GPU (MMIO)',
+            'virtio-gpu-gl-device': 'VirGL GPU (MMIO)',
+            'vhost-user-vga': 'vhost-user GPU (VGA)',
+            'vhost-user-gpu-pci': 'vhost-user GPU (PCI)',
             none: Proxmox.Utils.noneText,
+        },
+
+        kvm_vga_hints: {
+            'bochs-display': gettext(
+                'Bochs is a simple PCI framebuffer without legacy VGA ports. UEFI or a guest Bochs DRM driver is required for graphics. Video memory defaults to 16 MiB and must not exceed 256 MiB.',
+            ),
+            'ati-vga': gettext(
+                'ATI emulates Rage 128 Pro by default, or Radeon RV100 when selected. RV100 needs at least 16 MiB video memory. This model has no migration state support: live migration, RAM snapshots and hibernation are unavailable.',
+            ),
+            'isa-vga': gettext(
+                'ISA graphics are for legacy x86 guests. They do not use a PCI slot and may not be initialized by UEFI. ISA VGA defaults to 8 MiB video memory; ISA Cirrus defaults to 4 MiB.',
+            ),
+            'isa-cirrus-vga': gettext(
+                'ISA graphics are for legacy x86 guests. They do not use a PCI slot and may not be initialized by UEFI. ISA VGA defaults to 8 MiB video memory; ISA Cirrus defaults to 4 MiB.',
+            ),
+            cirrus: gettext(
+                'Cirrus is a legacy VGA model. Prefer Standard VGA or VirtIO for modern guests. Configurable video memory is 4, 8 or 16 MiB; larger settings do not add modern graphics capabilities.',
+            ),
+            'secondary-vga': gettext(
+                'This PCI graphics model omits legacy VGA I/O ports. Despite its name, it can be the only configured display. Firmware output depends on compatible UEFI; the guest needs a matching graphics driver.',
+            ),
+            'qxl-pci': gettext(
+                'This is the non-VGA QXL PCI device, with SPICE support. The guest needs a QXL driver. Firmware graphics may require UEFI; selecting it does not add a second display automatically.',
+            ),
+            'virtio-gpu-pci': gettext(
+                'This VirtIO GPU uses PCI without legacy VGA compatibility. The guest needs a VirtIO GPU driver. Use UEFI for firmware graphics; with legacy BIOS, the console may appear only after the guest driver loads.',
+            ),
+            'virtio-gpu-gl-pci': gettext(
+                'VirGL needs a compatible host render node, libegl1, libgl1 and guest VirtIO GPU/Mesa drivers. PCI and ARM MMIO variants omit legacy VGA compatibility. Live migration, RAM snapshots and hibernation are unavailable.',
+            ),
+            'virtio-gpu-device': gettext(
+                'This VirtIO GPU uses the ARM virt machine MMIO bus and consumes no PCI slot. It requires a guest VirtIO MMIO GPU driver. Firmware graphics may appear only after the guest driver loads.',
+            ),
+            'virtio-gpu-gl-device': gettext(
+                'VirGL needs a compatible host render node, libegl1, libgl1 and guest VirtIO GPU/Mesa drivers. PCI and ARM MMIO variants omit legacy VGA compatibility. Live migration, RAM snapshots and hibernation are unavailable.',
+            ),
+            'vhost-user-vga': gettext(
+                'Start an external vhost-user GPU backend before the VM, listening on /run/qemu-server/VMID.vgpu. QEMU connects as a client; the backend is managed separately and must be restarted for subsequent VM starts. Main RAM is shared automatically, including NUMA RAM. Memory hotplug, live migration, RAM snapshots and hibernation are unavailable. VNC/SPICE requires EGL and a usable host DRM render node even with a 2D backend; OpenGL is enabled automatically. Cold migration requires force and a separately prepared backend on the target.',
+            ),
+            'vhost-user-gpu-pci': gettext(
+                'Start an external vhost-user GPU backend before the VM, listening on /run/qemu-server/VMID.vgpu. QEMU connects as a client; the backend is managed separately and must be restarted for subsequent VM starts. Main RAM is shared automatically, including NUMA RAM. Memory hotplug, live migration, RAM snapshots and hibernation are unavailable. VNC/SPICE requires EGL and a usable host DRM render node even with a 2D backend; OpenGL is enabled automatically. Cold migration requires force and a separately prepared backend on the target.',
+            ),
         },
 
         render_kvm_language: function (value) {

@@ -21,6 +21,17 @@ Ext.define('PVE.qemu.BiosEdit', {
             onlineHelp: 'qm_bios_and_uefi',
             name: 'bios',
             value: '__default__',
+            validator: function (value) {
+                let valid = Proxmox.form.KVComboBox.prototype.validator.call(this, value);
+                if (valid !== true) {
+                    return valid;
+                }
+                let config = this.up('pveQemuBiosEdit')?.vmconfig || {};
+                return PVE.qemu.Architecture.validateDisplay(
+                    { ...config, bios: this.getValue() },
+                    this.category,
+                );
+            },
             bind: {
                 value: '{bios}',
                 category: '{arch}',
@@ -61,8 +72,9 @@ Ext.define('PVE.qemu.BiosEdit', {
                 success: function ({ result }) {
                     let values = result.data;
                     let arch = PVE.qemu.Architecture.getGuestArchitecture(values.arch, me.nodename);
-                    me.setValues(values);
+                    me.vmconfig = values;
                     me.down('pveQemuBiosSelector').setCategory(arch);
+                    me.setValues(values);
                 },
             });
         }

@@ -10,7 +10,7 @@ Ext.define('PVE.form.SpiceEnhancementSelector', {
             itemId: 'foldersharing',
             name: 'foldersharing',
             reference: 'foldersharing',
-            fieldLabel: 'Folder Sharing',
+            fieldLabel: gettext('Folder Sharing'),
             uncheckedValue: 0,
         },
         {
@@ -18,7 +18,7 @@ Ext.define('PVE.form.SpiceEnhancementSelector', {
             itemId: 'videostreaming',
             name: 'videostreaming',
             value: 'off',
-            fieldLabel: 'Video Streaming',
+            fieldLabel: gettext('Video Streaming'),
             comboItems: [
                 ['off', 'off'],
                 ['all', 'all'],
@@ -30,7 +30,7 @@ Ext.define('PVE.form.SpiceEnhancementSelector', {
             itemId: 'spicehint',
             userCls: 'pmx-hint',
             value: gettext(
-                'To use these features set the display to SPICE in the hardware settings of the VM.',
+                'These features require a display that supports SPICE. Check the display settings in the VM hardware.',
             ),
             hidden: true,
         },
@@ -62,10 +62,8 @@ Ext.define('PVE.form.SpiceEnhancementSelector', {
     },
 
     setValues: function (values) {
-        var vga = PVE.Parser.parsePropertyString(values.vga, 'type');
-        if (!/^qxl\d?$/.test(vga.type)) {
-            this.down('#spicehint').setVisible(true);
-        }
+        let arch = PVE.qemu.Architecture.getGuestArchitecture(values.arch, this.nodename);
+        this.down('#spicehint').setVisible(!PVE.qemu.Architecture.displayUsesSpice(values, arch));
         if (values.spice_enhancements) {
             let enhancements = PVE.Parser.parsePropertyString(values.spice_enhancements);
             enhancements.foldersharing = PVE.Parser.parseBoolean(enhancements.foldersharing, 0);

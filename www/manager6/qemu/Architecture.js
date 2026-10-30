@@ -88,6 +88,111 @@ Ext.define('PVE.qemu.Architecture', {
         aarch64: ['ovmf'],
     },
 
+    allowedDisplays: {
+        x86_64: [
+            '__default__',
+            'std',
+            'cirrus',
+            'vmware',
+            'qxl',
+            'qxl2',
+            'qxl3',
+            'qxl4',
+            'serial0',
+            'serial1',
+            'serial2',
+            'serial3',
+            'virtio',
+            'virtio-gl',
+            'none',
+            'ramfb',
+            'mdev',
+            'bochs-display',
+            'ati-vga',
+            'isa-vga',
+            'isa-cirrus-vga',
+            'secondary-vga',
+            'qxl-pci',
+            'virtio-gpu-pci',
+            'virtio-gpu-gl-pci',
+            'vhost-user-vga',
+            'vhost-user-gpu-pci',
+        ],
+        aarch64: [
+            '__default__',
+            'std',
+            'cirrus',
+            'serial0',
+            'serial1',
+            'serial2',
+            'serial3',
+            'virtio',
+            'virtio-gl',
+            'none',
+            'ramfb',
+            'mdev',
+            'bochs-display',
+            'ati-vga',
+            'secondary-vga',
+            'virtio-gpu-pci',
+            'virtio-gpu-gl-pci',
+            'virtio-gpu-device',
+            'virtio-gpu-gl-device',
+            'vhost-user-gpu-pci',
+        ],
+    },
+
+    displayUsesSpice: function (config, arch) {
+        let type = PVE.Parser.parsePropertyString(config.vga || '', 'type')?.type;
+        if (!type && arch === 'aarch64') {
+            if (config.vga === undefined || config.vga === null) {
+                let primaryGPU = Object.entries(config).some(([key, value]) => {
+                    if (!/^hostpci\d+$/.test(key)) {
+                        return false;
+                    }
+                    let pci = PVE.Parser.parsePropertyString(value, 'host');
+                    return PVE.Parser.parseBoolean(pci?.['x-vga'], false);
+                });
+                if (primaryGPU) {
+                    return false;
+                }
+            }
+            type = 'virtio';
+        }
+        return /^(qxl([234]|-pci)?|virtio(-gl|-gpu(-gl)?-(pci|device))?|vhost-user-(vga|gpu-pci)|mdev|ramfb)$/.test(
+            type || '',
+        );
+    },
+
+    // Validate active devices; PCI display flags can be staged before enabling mdev.
+    validateDisplay: function (config, arch) {
+        let type = PVE.Parser.parsePropertyString(config.vga || '', 'type')?.type;
+        let ramfbCount = type === 'ramfb' ? 1 : 0;
+        for (const [key, value] of Object.entries(config)) {
+            if (!/^hostpci\d+$/.test(key)) {
+                continue;
+            }
+            let pci = PVE.Parser.parsePropertyString(value, 'host');
+            if (PVE.Parser.parseBoolean(pci?.['legacy-igd'], false) && type !== 'none') {
+                return gettext('Legacy IGD passthrough requires the display type None.');
+            }
+            if (
+                type === 'mdev' &&
+                PVE.Parser.parseBoolean(pci?.display, false) &&
+                PVE.Parser.parseBoolean(pci?.ramfb, false)
+            ) {
+                ramfbCount++;
+            }
+        }
+        if (type === 'mdev' && ramfbCount > 1) {
+            return gettext('Enable RAMFB boot display on at most one PCI device.');
+        }
+        if (ramfbCount && arch !== 'aarch64' && config.bios !== 'ovmf') {
+            return gettext('RAM framebuffer requires UEFI firmware. Select OVMF (UEFI).');
+        }
+        return true;
+    },
+
     render_vcpu_architecture: function (value) {
         switch (value ?? '') {
             case '':
