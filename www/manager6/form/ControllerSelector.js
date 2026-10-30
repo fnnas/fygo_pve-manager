@@ -6,6 +6,7 @@ Ext.define('PVE.form.ControllerSelector', {
     withNVMe: true,
     withUSB: true,
     withEMMC: true,
+    withSDCard: true,
     withUnused: false,
 
     vmconfig: {}, // used to check for existing devices
@@ -100,6 +101,7 @@ Ext.define('PVE.form.ControllerSelector', {
                     withNVMe: me.withNVMe,
                     withUSB: me.withUSB,
                     withEMMC: me.withEMMC,
+                    withSDCard: me.withSDCard,
                     withUnused: me.withUnused,
                     allowBlank: false,
                     flex: 2,

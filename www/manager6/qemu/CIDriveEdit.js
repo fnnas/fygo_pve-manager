@@ -41,6 +41,7 @@ Ext.define('PVE.qemu.CIDriveInputPanel', {
                 withNVMe: false,
                 withUSB: false,
                 withEMMC: false,
+                withSDCard: false,
                 itemId: 'drive',
                 fieldLabel: gettext('CloudInit Drive'),
                 nodename: me.nodename,
