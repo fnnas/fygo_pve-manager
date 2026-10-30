@@ -2,6 +2,13 @@
 (() => {
     const translations = {
         zh_CN: {
+            'eMMC CID': 'eMMC 卡标识 (CID)',
+            'Enter exactly 32 hexadecimal characters (16 bytes).':
+                '请输入 32 个十六进制字符（16 字节）。',
+            'Leave CID empty to use the QEMU default. A custom CID requires QEMU support for emmc.cid and is preserved in VM backups. Shut down and start the VM to apply changes. Linux on SDHCI reports the last CID byte as 00 because the controller omits the CRC byte.':
+                'CID 留空时使用 QEMU 默认值。自定义 CID 需要 QEMU 支持 emmc.cid，配置会随虚拟机备份保留。修改后请关闭虚拟机再启动。SDHCI 控制器不提供 CID 的校验字节，因此 Linux 读出的 CID 最后两位固定为 00。',
+            'Displaying the complete CID requires a QEMU SDHCI response mode that retains the CRC byte, plus sdhci.debug_quirks2=0x10000 in the guest Linux kernel command line followed by a guest reboot. The current QEMU package does not provide that mode; enabling the parameter alone misreads CID/CSD. The parameter affects all SDHCI controllers in the guest and overrides other quirks2 settings.':
+                '完整显示 CID 需要先使用保留 CRC 字节的 QEMU SDHCI 响应模式，再在客户机 Linux 内核启动参数中加入 sdhci.debug_quirks2=0x10000，并重启客户机。当前配套 QEMU 包尚未提供该模式，单独启用参数会导致 CID/CSD 读取错误。该参数影响客户机内所有 SDHCI 控制器，并覆盖其他 quirks2 设置。',
             'Each boot partition (KiB)': '每个启动分区 (KiB)',
             'RPMB size (KiB)': 'RPMB 大小 (KiB)',
             'Boot partition': '启动分区',
@@ -22,6 +29,13 @@
                 'RPMB 大小设为 0 时禁用。虚拟机冷启动后，来宾设置的 RPMB 密钥和写入计数器会重置。预设密钥保存在虚拟机配置中，每次启动时应用，需要 QEMU 支持 emmc.auth-key。启用 RPMB 后可使用纯磁盘备份和离线迁移，无法使用包含内存的快照、休眠和在线迁移。',
         },
         zh_TW: {
+            'eMMC CID': 'eMMC 卡片識別碼 (CID)',
+            'Enter exactly 32 hexadecimal characters (16 bytes).':
+                '請輸入 32 個十六進位字元（16 位元組）。',
+            'Leave CID empty to use the QEMU default. A custom CID requires QEMU support for emmc.cid and is preserved in VM backups. Shut down and start the VM to apply changes. Linux on SDHCI reports the last CID byte as 00 because the controller omits the CRC byte.':
+                'CID 留空時使用 QEMU 預設值。自訂 CID 需要 QEMU 支援 emmc.cid，設定會隨虛擬機備份保留。修改後請關閉虛擬機再啟動。SDHCI 控制器不提供 CID 的校驗位元組，因此 Linux 讀出的 CID 最後兩位固定為 00。',
+            'Displaying the complete CID requires a QEMU SDHCI response mode that retains the CRC byte, plus sdhci.debug_quirks2=0x10000 in the guest Linux kernel command line followed by a guest reboot. The current QEMU package does not provide that mode; enabling the parameter alone misreads CID/CSD. The parameter affects all SDHCI controllers in the guest and overrides other quirks2 settings.':
+                '完整顯示 CID 需要先使用保留 CRC 位元組的 QEMU SDHCI 回應模式，再於客體 Linux 核心啟動參數中加入 sdhci.debug_quirks2=0x10000，並重新啟動客體。目前配套 QEMU 套件尚未提供該模式，單獨啟用參數會導致 CID/CSD 讀取錯誤。該參數影響客體內所有 SDHCI 控制器，並覆寫其他 quirks2 設定。',
             'Each boot partition (KiB)': '每個開機分割區 (KiB)',
             'RPMB size (KiB)': 'RPMB 大小 (KiB)',
             'Boot partition': '開機分割區',

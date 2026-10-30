@@ -134,6 +134,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             'rpmb-partition-size',
             'boot-config',
             'auth-key',
+            'cid',
         ];
         if (/^emmc/.test(confid)) {
             const bootSize = Number(values.emmcBootSize || 0) * 1024;
@@ -146,6 +147,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             PVE.Utils.propertyStringSet(me.drive, rpmbSize, 'rpmb-partition-size');
             PVE.Utils.propertyStringSet(me.drive, bootConfig, 'boot-config');
             PVE.Utils.propertyStringSet(me.drive, values.emmcAuthKey, 'auth-key');
+            PVE.Utils.propertyStringSet(me.drive, values.emmcCid, 'cid');
             ['discard', 'ssd', 'iothread', 'ro', 'serial', 'rerror', 'werror'].forEach(
                 (name) => delete me.drive[name],
             );
@@ -263,6 +265,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.emmcBoot = String((bootConfig >> 3) & 7);
         values.emmcBootAck = !!(bootConfig & 64);
         values.emmcAuthKey = drive['auth-key'] || '';
+        values.emmcCid = drive.cid || '';
         Object.assign(values, PVE.qemu.NVMe.loadValues(drive));
 
         values.mbps_rd = drive.mbps_rd;
@@ -649,6 +652,18 @@ Ext.define('PVE.qemu.HDInputPanel', {
                         reference: 'emmcPanel',
                         bind: { disabled: '{!isEMMC}' },
                         column1: [
+                            {
+                                xtype: 'textfield',
+                                name: 'emmcCid',
+                                fieldLabel: gettext('eMMC CID'),
+                                emptyText: gettext('Default'),
+                                value: '',
+                                validator: (value) =>
+                                    !value ||
+                                    (value.length === 32 && /^[0-9a-fA-F]{32}$/.test(value)) ||
+                                    gettext('Enter exactly 32 hexadecimal characters (16 bytes).'),
+                                bind: { disabled: '{!isEMMC}' },
+                            },
                             partitionSizeField(
                                 'emmcBootSize',
                                 gettext('Each boot partition (KiB)'),
@@ -728,6 +743,18 @@ Ext.define('PVE.qemu.HDInputPanel', {
                             },
                         ],
                         columnB: [
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'Leave CID empty to use the QEMU default. A custom CID requires QEMU support for emmc.cid and is preserved in VM backups. Shut down and start the VM to apply changes. Linux on SDHCI reports the last CID byte as 00 because the controller omits the CRC byte.',
+                                ),
+                            },
+                            {
+                                xtype: 'displayfield',
+                                value: gettext(
+                                    'Displaying the complete CID requires a QEMU SDHCI response mode that retains the CRC byte, plus sdhci.debug_quirks2=0x10000 in the guest Linux kernel command line followed by a guest reboot. The current QEMU package does not provide that mode; enabling the parameter alone misreads CID/CSD. The parameter affects all SDHCI controllers in the guest and overrides other quirks2 settings.',
+                                ),
+                            },
                             {
                                 xtype: 'displayfield',
                                 value: gettext(
