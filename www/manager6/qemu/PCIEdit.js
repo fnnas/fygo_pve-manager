@@ -34,6 +34,8 @@ Ext.define('PVE.qemu.PCIInputPanel', {
             values['x-vga'] = PVE.Parser.parseBoolean(values['x-vga'], 0);
             values.pcie = PVE.Parser.parseBoolean(values.pcie, 0);
             values.rombar = PVE.Parser.parseBoolean(values.rombar, 1);
+            values.display = PVE.Parser.parseBoolean(values.display, 0);
+            values.ramfb = PVE.Parser.parseBoolean(values.ramfb, 0);
 
             view.setValues(values);
             if (!PVE.qemu.Architecture.isQ35Machine(me.vmconfig.machine)) {
@@ -53,8 +55,19 @@ Ext.define('PVE.qemu.PCIInputPanel', {
             me.pciDevChange(selector, selector.getValue());
         },
 
+        validateDisplayDevice: function () {
+            let me = this;
+            let field = me.lookup('display');
+            if (field) {
+                field.validate();
+            }
+        },
+
         pciDevChange: function (pcisel, value) {
             let me = this;
+            if (pcisel.isDisabled()) {
+                return;
+            }
             let mdevfield = me.lookup('mdev');
             if (!value) {
                 if (!pcisel.isDisabled()) {
@@ -63,6 +76,7 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                 return;
             }
             let pciDev = pcisel.getStore().getById(value);
+            me.validateDisplayDevice();
 
             mdevfield.setDisabled(!pciDev || !pciDev.data.mdev);
             if (!pciDev) {
@@ -125,6 +139,12 @@ Ext.define('PVE.qemu.PCIInputPanel', {
             if (!values.romfile) {
                 delete values.romfile;
             }
+            if (!values.display) {
+                delete values.display;
+                delete values.ramfb;
+            } else if (!values.ramfb) {
+                delete values.ramfb;
+            }
 
             delete values.type;
 
@@ -137,6 +157,7 @@ Ext.define('PVE.qemu.PCIInputPanel', {
     viewModel: {
         data: {
             isMapped: true,
+            consoleDisplay: false,
         },
     },
 
@@ -232,6 +253,7 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                     me.lookup('iommu_warning').setVisible(
                         records.every((val) => val.data.iommugroup === -1),
                     );
+                    me.getController().selectorEnable(me.lookup('selector'));
                 },
                 listeners: {
                     change: 'pciDevChange',
@@ -268,6 +290,33 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                         multiFunction.setDisabled(!!value);
                     },
                 },
+            },
+            {
+                xtype: 'proxmoxcheckbox',
+                name: 'display',
+                reference: 'display',
+                fieldLabel: gettext('Console display'),
+                bind: { value: '{consoleDisplay}' },
+                getErrors: function () {
+                    let errors = [];
+                    let selector = me.lookup('selector');
+                    let device = selector.getStore().getById(selector.getValue());
+                    if (
+                        this.getValue() &&
+                        !selector.isDisabled() &&
+                        device?.data.class &&
+                        !/^0x03[0-9a-f]{4}$/i.test(device.data.class)
+                    ) {
+                        errors.push(gettext('Console display requires a graphics PCI device.'));
+                    }
+                    return errors;
+                },
+            },
+            {
+                xtype: 'proxmoxcheckbox',
+                name: 'ramfb',
+                fieldLabel: gettext('RAMFB boot display'),
+                bind: { disabled: '{!consoleDisplay}' },
             },
             {
                 xtype: 'proxmoxcheckbox',
@@ -335,6 +384,23 @@ Ext.define('PVE.qemu.PCIInputPanel', {
                 vtype: 'PciId',
                 allowBlank: true,
                 submitEmpty: false,
+            },
+        ];
+
+        me.columnB = [
+            {
+                xtype: 'displayfield',
+                userCls: 'pmx-hint',
+                value: gettext(
+                    'Console display is off by default. Enable it only on a GPU with VFIO display support, then set the VM display to Mediated/VFIO display. MDev Type selects an existing host vGPU profile; this does not enable unsupported hardware or drivers. Mapped devices and all alternatives are checked at startup.',
+                ),
+            },
+            {
+                xtype: 'displayfield',
+                userCls: 'pmx-hint',
+                value: gettext(
+                    'RAMFB boot display is off by default and requires Console display and compatible UEFI firmware. Enable it on at most one GPU for boot graphics before the guest GPU driver loads. Device hotplug is unavailable. Shut down and start the VM to apply changes; migration and snapshots remain subject to VFIO and driver restrictions.',
+                ),
             },
         ];
 

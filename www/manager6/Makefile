@@ -7,6 +7,8 @@ JSSRC= 							\
 	locale/SDCard.js					\
 	locale/NVMe.js					\
 	locale/CustomMachine.js				\
+	locale/VFIODisplay.js				\
+	locale/DisplayTypes.js				\
 	Parser.js					\
 	StateProvider.js				\
 	qemu/Architecture.js				\

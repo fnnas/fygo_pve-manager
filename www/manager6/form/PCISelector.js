@@ -3,7 +3,16 @@ Ext.define('PVE.form.PCISelector', {
     xtype: 'pvePCISelector',
 
     store: {
-        fields: ['id', 'vendor_name', 'device_name', 'vendor', 'device', 'iommugroup', 'mdev'],
+        fields: [
+            'id',
+            'vendor_name',
+            'device_name',
+            'vendor',
+            'device',
+            'class',
+            'iommugroup',
+            'mdev',
+        ],
         filterOnLoad: true,
         sorters: [
             {

@@ -9,10 +9,14 @@ Ext.define('PVE.qemu.SystemInputPanel', {
             efi: false,
             addefi: true,
             machineType: '__default__',
+            displayType: '__default__',
         },
 
         formulas: {
             custom: (get) => get('machineType') === '__custom__',
+            vfioDisplay: (get) => get('displayType') === 'mdev',
+            ramfbDisplay: (get) => get('displayType') === 'ramfb',
+            displayHint: (get) => PVE.Utils.kvm_vga_hints[get('displayType')] || '',
             efidisk: function (get) {
                 return get('efi') && get('addefi');
             },
@@ -89,12 +93,33 @@ Ext.define('PVE.qemu.SystemInputPanel', {
 
     column1: [
         {
-            xtype: 'proxmoxKVComboBox',
+            xtype: 'pveFilteredKVComboBox',
             value: '__default__',
             deleteEmpty: false,
             fieldLabel: gettext('Graphic card'),
             name: 'vga',
             comboItems: Object.entries(PVE.Utils.kvm_vga_drivers),
+            allowedValuesPerCategory: PVE.qemu.Architecture.allowedDisplays,
+            bind: { value: '{displayType}', category: '{current.architecture}' },
+        },
+        {
+            xtype: 'displayfield',
+            userCls: 'pmx-hint',
+            bind: { value: '{displayHint}', hidden: '{!displayHint}' },
+        },
+        {
+            xtype: 'displayfield',
+            bind: { hidden: '{!vfioDisplay}' },
+            userCls: 'pmx-hint',
+            value: gettext(
+                'Before starting the VM, add a graphics PCI device and enable Console display. Configure OpenGL and the render node in Hardware - Display after creation.',
+            ),
+        },
+        {
+            xtype: 'displayfield',
+            bind: { hidden: '{!ramfbDisplay}' },
+            userCls: 'pmx-hint',
+            value: gettext('RAM framebuffer requires compatible UEFI firmware.'),
         },
         {
             xtype: 'pveQemuMachineSelector',
