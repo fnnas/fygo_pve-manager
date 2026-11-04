@@ -28,6 +28,9 @@ Ext.define('PVE.qemu.ProcessorInputPanel', {
             let viewModel = me.getViewModel();
 
             viewModel.set('userIsRoot', Proxmox.UserName === 'root@pam');
+            if (me.getView().insideWizard) {
+                viewModel.set('coreCount', 2);
+            }
         },
     },
 
@@ -317,14 +320,14 @@ Ext.define('PVE.qemu.ProcessorEdit', {
                     }
                 }
                 let arch = PVE.qemu.Architecture.getGuestArchitecture(data.arch, me.nodename);
-                // change default cputype for x86 in gui only
-                if (arch === 'x86_64') {
+                // Preserve the effective CPU of existing VMs when changing GUI defaults.
+                if (PVE.qemu.Architecture.defaultProcessorModel[arch]) {
                     if (!data.cputype) {
-                        // use our backend default as explicit value
-                        data.cputype = 'kvm64';
-                    } else if (
-                        data.cputype === PVE.qemu.Architecture.defaultProcessorModel.x86_64
-                    ) {
+                        let kvm = PVE.Parser.parseBoolean(String(data.kvm ?? 1));
+                        data.cputype =
+                            arch === 'aarch64' ? (kvm ? 'host' : 'max') : kvm ? 'kvm64' : 'qemu64';
+                    }
+                    if (data.cputype === PVE.qemu.Architecture.defaultProcessorModel[arch]) {
                         delete data.cputype;
                     }
                 }

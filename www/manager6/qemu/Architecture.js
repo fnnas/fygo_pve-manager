@@ -25,8 +25,8 @@ Ext.define('PVE.qemu.Architecture', {
     },
 
     defaultProcessorModel: {
-        x86_64: 'x86-64-v2-AES',
-        aarch64: 'host',
+        x86_64: 'max',
+        aarch64: 'max',
     },
 
     defaultMachines: {
@@ -35,8 +35,13 @@ Ext.define('PVE.qemu.Architecture', {
     },
 
     defaultCDDrive: {
-        x86_64: ['ide', 2],
+        x86_64: ['sata', 2],
         aarch64: ['scsi', 2],
+    },
+
+    defaultDriverCDDrive: {
+        x86_64: ['sata', 0],
+        aarch64: ['ide', 0],
     },
 
     allowedScsiHw: {

@@ -14,13 +14,19 @@ Ext.define('PVE.qemu.MultiHDPanel', {
             view.on(
                 'afterrender',
                 () => {
-                    const bindings = ['architecture', 'ostype', 'scsihw', 'isoConfig', 'ide0'].map(
-                        (name) =>
-                            me.getViewModel().bind(`{current.${name}}`, () => {
-                                if (view.nodename && !view.destroyed && !view.destroying) {
-                                    me.updateVMConfig();
-                                }
-                            }),
+                    const bindings = [
+                        'architecture',
+                        'ostype',
+                        'scsihw',
+                        'isoConfig',
+                        'driverIsoConfig',
+                        'driverIso',
+                    ].map((name) =>
+                        me.getViewModel().bind(`{current.${name}}`, () => {
+                            if (view.nodename && !view.destroyed && !view.destroying) {
+                                me.updateVMConfig();
+                            }
+                        }),
                     );
                     view.on('destroy', () => Ext.destroy(bindings), me, { single: true });
                 },
@@ -38,6 +44,16 @@ Ext.define('PVE.qemu.MultiHDPanel', {
         getNextFreeDisk: function (vmconfig) {
             let nodename = this.getView().nodename;
             let clist = PVE.Utils.sortByPreviousUsage(vmconfig, nodename);
+            const hasDisk = Object.entries(vmconfig).some(
+                ([id, value]) => id.match(PVE.Utils.bus_match) && !value.includes('media=cdrom'),
+            );
+            if (
+                !hasDisk &&
+                vmconfig.ostype?.startsWith('w') &&
+                this.getViewModel().get('current.driverIso') === 'some'
+            ) {
+                clist = ['scsi', ...clist.filter((bus) => bus !== 'scsi')];
+            }
             const arch = PVE.qemu.Architecture.getGuestArchitecture(vmconfig.arch, nodename);
             const allowed = PVE.qemu.Architecture.allowedBusses[arch];
             if (allowed) {
@@ -48,7 +64,7 @@ Ext.define('PVE.qemu.MultiHDPanel', {
 
         addPanel: function (itemId, vmconfig, nextFreeDisk, importDisk) {
             let me = this;
-            return me.getView().add({
+            const panel = me.getView().add({
                 vmconfig,
                 border: false,
                 showAdvanced: Ext.state.Manager.getProvider().get('proxmox-advanced-cb'),
@@ -62,6 +78,9 @@ Ext.define('PVE.qemu.MultiHDPanel', {
                 insideWizard: true,
                 importDisk,
             });
+            panel.bussel.down('field[name=controller]').setValue(nextFreeDisk.controller);
+            panel.bussel.down('field[name=deviceid]').setValue(nextFreeDisk.id);
+            return panel;
         },
 
         getBaseVMConfig: function () {
@@ -74,11 +93,19 @@ Ext.define('PVE.qemu.MultiHDPanel', {
                 ostype: vm.get('current.ostype'),
             };
 
-            let isoConfig = vm.get('current.isoConfig') ?? 'ide2';
+            const [controller, id] =
+                PVE.qemu.Architecture.defaultCDDrive[res.arch] ??
+                PVE.qemu.Architecture.defaultCDDrive.x86_64;
+            let isoConfig = vm.get('current.isoConfig') ?? `${controller}${id}`;
             res[isoConfig] = 'media=cdrom';
 
-            if (vm.get('current.ide0') === 'some') {
-                res.ide0 = 'media=cdrom';
+            if (vm.get('current.driverIso') === 'some') {
+                const [driverController, driverId] =
+                    PVE.qemu.Architecture.defaultDriverCDDrive[res.arch] ??
+                    PVE.qemu.Architecture.defaultDriverCDDrive.x86_64;
+                let driverIsoConfig =
+                    vm.get('current.driverIsoConfig') ?? `${driverController}${driverId}`;
+                res[driverIsoConfig] = 'media=cdrom';
             }
 
             return res;

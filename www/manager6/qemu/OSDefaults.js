@@ -122,8 +122,20 @@ Ext.define('PVE.qemu.OSDefaults', {
         });
 
         addOS({
-            pveOS: 'win11',
+            pveOS: 'w2k8',
             parent: 'generic',
+            busType: 'sata',
+            busPriority: {
+                ...me.generic.x86_64.busPriority,
+                sata: 5,
+            },
+        });
+        for (const pveOS of ['win7', 'win8', 'win10']) {
+            addOS({ pveOS, parent: 'w2k8' });
+        }
+        addOS({
+            pveOS: 'win11',
+            parent: 'w2k8',
             machine: 'q35',
             bios: 'ovmf',
         });

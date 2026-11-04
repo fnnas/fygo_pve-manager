@@ -308,7 +308,7 @@ Ext.define('PVE.window.GuestImport', {
 
     viewModel: {
         data: {
-            coreCount: 1,
+            coreCount: 2,
             socketCount: 1,
             liveImport: false,
             os: 'l26',
@@ -505,7 +505,7 @@ Ext.define('PVE.window.GuestImport', {
                             fieldLabel: gettext('Cores'),
                             name: 'cores',
                             reference: 'coresField',
-                            value: 1,
+                            value: 2,
                             minValue: 1,
                             maxValue: 1024,
                             allowBlank: true,
@@ -553,7 +553,7 @@ Ext.define('PVE.window.GuestImport', {
                             xtype: 'CPUModelSelector',
                             name: 'cpu',
                             reference: 'cputype',
-                            value: 'x86-64-v2-AES',
+                            value: PVE.qemu.Architecture.defaultProcessorModel.x86_64,
                             fieldLabel: gettext('CPU Type'),
                         },
                         {
@@ -1048,6 +1048,28 @@ Ext.define('PVE.window.GuestImport', {
             success: function (response) {
                 let data = response.result.data;
                 me.vmConfig = data['create-args'];
+                me.vmConfig.agent ??= 1;
+                let cpuSelector = me.lookup('cputype');
+                let arch = PVE.qemu.Architecture.getGuestArchitecture(
+                    me.vmConfig.arch,
+                    me.nodename,
+                );
+                // Reloading the model list can clear an imported selection.
+                me.mon(
+                    cpuSelector.getStore(),
+                    'load',
+                    (_store, _records, success) => {
+                        if (success) {
+                            cpuSelector.setValue(
+                                me.vmConfig.cpu ??
+                                    PVE.qemu.Architecture.defaultProcessorModel[arch],
+                            );
+                        }
+                    },
+                    me,
+                    { single: true },
+                );
+                cpuSelector.setArch(arch);
 
                 let disks = [];
                 for (const [id, value] of Object.entries(data.disks ?? {})) {

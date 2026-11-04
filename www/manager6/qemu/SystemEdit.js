@@ -226,6 +226,7 @@ Ext.define('PVE.qemu.SystemInputPanel', {
         {
             xtype: 'proxmoxcheckbox',
             name: 'agent',
+            value: true,
             uncheckedValue: 0,
             defaultValue: 0,
             deleteDefaultValue: true,

@@ -63,7 +63,7 @@ Ext.define('PVE.form.ControllerSelector', {
                 deviceid.setValue(id);
                 return;
             }
-            clist = ['ide', 'scsi', 'sata'];
+            clist = arch === 'x86_64' ? ['sata', 'ide', 'scsi'] : ['ide', 'scsi', 'sata'];
         } else {
             // in most cases we want to add a disk to the same controller we previously used
             clist = PVE.Utils.sortByPreviousUsage(me.vmconfig, me.nodename);

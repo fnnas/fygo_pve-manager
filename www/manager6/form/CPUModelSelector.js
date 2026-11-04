@@ -44,9 +44,9 @@ Ext.define('PVE.form.CPUModelSelector', {
                 data[me.getName()] = val;
             } else if (me.getDeleteEmpty()) {
                 data = {};
-                // special case to change gui default for x86
-                if (me.arch === 'x86_64') {
-                    data[me.getName()] = PVE.qemu.Architecture.defaultProcessorModel.x86_64;
+                let defaultCPU = PVE.qemu.Architecture.defaultProcessorModel[me.arch];
+                if (defaultCPU) {
+                    data[me.getName()] = defaultCPU;
                 } else {
                     data.delete = me.getName();
                 }

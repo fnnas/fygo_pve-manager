@@ -18,7 +18,9 @@ Ext.define('PVE.qemu.OSPanel', {
         let conf = `${controller}${id}`;
         vm.set('current.isoConfig', conf);
         me.lookup('cdSelector').confid = conf;
-        // TODO change confid for second cd if windows is allowed for other architectures
+        let driverCD = PVE.qemu.Architecture.defaultDriverCDDrive;
+        let [driverController, driverId] = driverCD[arch] ?? driverCD.x86_64;
+        vm.set('current.driverIsoConfig', `${driverController}${driverId}`);
     },
 
     controller: {
@@ -48,11 +50,13 @@ Ext.define('PVE.qemu.OSPanel', {
             var me = this,
                 ostype = field.getValue();
 
-            let arch = me.getViewModel().get('current.architecture');
+            let vm = me.getViewModel();
+            let arch = vm.get('current.architecture');
             var targetValues = PVE.qemu.OSDefaults.getDefaults(ostype, arch);
 
-            me.setWidget('pveBusSelector', targetValues.busType);
-            me.setWidget('pveNetworkCardSelector', targetValues.networkCard);
+            let useVirtIO = ostype?.startsWith('w') && vm.get('current.driverIso') === 'some';
+            me.setWidget('pveBusSelector', useVirtIO ? 'scsi' : targetValues.busType);
+            me.setWidget('pveNetworkCardSelector', useVirtIO ? 'virtio' : targetValues.networkCard);
             me.setWidget('CPUModelSelector', targetValues.cputype);
             var scsihw = targetValues.scsihw || '__default__';
             this.getViewModel().set('current.scsihw', scsihw);
@@ -79,13 +83,13 @@ Ext.define('PVE.qemu.OSPanel', {
             };
             if (value) {
                 // only for windows
-                vm.set('current.ide0', 'some');
+                vm.set('current.driverIso', 'some');
                 vm.notify();
                 updateVMConfig();
                 me.setWidget('pveBusSelector', 'scsi');
                 me.setWidget('pveNetworkCardSelector', 'virtio');
             } else {
-                vm.set('current.ide0', '');
+                vm.set('current.driverIso', '');
                 vm.notify();
                 updateVMConfig();
                 me.setWidget('pveBusSelector', 'scsi');
@@ -93,6 +97,7 @@ Ext.define('PVE.qemu.OSPanel', {
                 let arch = vm.get('current.architecture');
                 let targetValues = PVE.qemu.OSDefaults.getDefaults(ostype, arch);
                 me.setWidget('pveBusSelector', targetValues.busType);
+                me.setWidget('pveNetworkCardSelector', targetValues.networkCard);
             }
         },
     },
@@ -104,7 +109,7 @@ Ext.define('PVE.qemu.OSPanel', {
             bind: {
                 nodename: '{nodename}',
             },
-            confid: 'ide2',
+            confid: 'sata2',
             insideWizard: true,
         },
         {
@@ -131,13 +136,16 @@ Ext.define('PVE.qemu.OSPanel', {
                 {
                     xtype: 'inputpanel',
                     onGetValues: function (values) {
-                        if (values.ide0) {
+                        if (values.driverIso) {
                             let drive = {
                                 media: 'cdrom',
-                                file: values.ide0,
+                                file: values.driverIso,
                             };
-                            values.ide0 = PVE.Parser.printQemuDrive(drive);
+                            let confid =
+                                this.lookupViewModel().get('current.driverIsoConfig') ?? 'sata0';
+                            values[confid] = PVE.Parser.printQemuDrive(drive);
                         }
+                        delete values.driverIso;
                         return values;
                     },
                     items: [
@@ -159,7 +167,7 @@ Ext.define('PVE.qemu.OSPanel', {
                         {
                             xtype: 'pveIsoSelector',
                             reference: 'isoSelector',
-                            name: 'ide0',
+                            name: 'driverIso',
                             insideWizard: true,
                             hidden: true,
                             disabled: true,

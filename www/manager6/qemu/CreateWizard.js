@@ -27,41 +27,36 @@ Ext.define('PVE.qemu.CreateWizard', {
 
     subject: gettext('Virtual Machine'),
 
-    // fot the special case that we have 2 cdrom drives
-    //
-    // emulates part of the backend bootorder logic, but includes all cdrom drives since the backend
-    // cannot know which one is a bootable iso and hardcodes the known values (ide0/2, net0)
+    // Put the install ISO before the optional driver ISO, after the first disk.
     calculateBootOrder: function (values) {
-        // user selected windows + second cdrom
-        if (values.ide0 && values.ide0.match(/media=cdrom/)) {
-            let disk;
-            PVE.Utils.forEachBus(
-                ['ide', 'scsi', 'virtio', 'sata', 'nvme', 'usbdisk'],
-                (type, id) => {
-                    let confId = type + id;
-                    if (!values[confId]) {
-                        return undefined;
-                    }
-                    if (values[confId].match(/media=cdrom/)) {
-                        return undefined;
-                    }
-                    disk = confId;
-                    return false; // abort loop
-                },
-            );
-
-            let order = [];
-            if (disk) {
-                order.push(disk);
+        let disk;
+        let cdroms = [];
+        PVE.Utils.forEachBus(['ide', 'scsi', 'virtio', 'sata', 'nvme', 'usbdisk'], (type, id) => {
+            let confId = type + id;
+            if (!values[confId]) {
+                return;
             }
-            order.push('ide2', 'ide0'); // ide2 is the install ISO and should be first
-            if (values.net0) {
-                order.push('net0');
+            if (values[confId].match(/media=cdrom/)) {
+                cdroms.push(confId);
+            } else {
+                disk ??= confId;
             }
-
-            return `order=${order.join(';')}`;
+        });
+        if (cdroms.length < 2) {
+            return undefined;
         }
-        return undefined;
+
+        let installCD = this.getViewModel().get('current.isoConfig');
+        let order = [];
+        if (disk) {
+            order.push(disk);
+        }
+        order.push(...cdroms.filter((id) => id === installCD));
+        order.push(...cdroms.filter((id) => id !== installCD));
+        if (values.net0) {
+            order.push('net0');
+        }
+        return `order=${order.join(';')}`;
     },
 
     setArchitecture: function () {

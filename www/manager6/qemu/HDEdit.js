@@ -52,6 +52,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             vm.set('isSDCard', value.match(/^sdcard/));
 
             me.getView().updateEMMCDiskSizeField();
+            me.getView().updateDiscardDefault();
             me.fireIdChange();
         },
 
@@ -91,6 +92,35 @@ Ext.define('PVE.qemu.HDInputPanel', {
                 vm.set('isSDCard', view.confid.match(/^sdcard/));
             }
         },
+    },
+
+    updateDiscardDefault: function () {
+        const me = this;
+        if (!me.isCreate || me.unused || me.importDisk || me.preserveDiscard) {
+            return;
+        }
+        const discard = me.lookup('discard');
+        const storage = me.down('field[name=hdstorage]');
+        if (!discard || !storage) {
+            return;
+        }
+        const bus = me.bussel?.down('field[name=controller]')?.getValue() ?? me.confid;
+        const supportedBus = /^(sata|scsi|virtio|nvme|usbdisk)/.test(bus ?? '');
+        const record = storage.getStore().getById(storage.getValue());
+        const type = record?.get('type');
+        const format = me.down('field[name=diskformat]')?.getValue();
+        const image = me.down('field[name=hdimage]');
+        const existingImage = image && !image.disabled;
+        const supportsQcow2 =
+            record?.data.formats?.supported?.includes('qcow2') ?? record?.data.format?.[0]?.qcow2;
+        const thin =
+            ['lvmthin', 'zfspool', 'rbd', 'btrfs'].includes(type) ||
+            (supportsQcow2 && format === 'qcow2');
+        // Backends without known thin support and existing images stay opt-in.
+        // Automatic changes must not replace an explicit checkbox choice.
+        me.settingDiscardDefault = true;
+        discard.setValue(supportedBus && (me.discardUserValue ?? (thin && !existingImage)));
+        me.settingDiscardDefault = false;
     },
 
     updateEMMCDiskSizeField: function () {
@@ -280,6 +310,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
     setDrive: function (drive) {
         var me = this;
 
+        me.preserveDiscard = true;
         me.drive = drive;
 
         var values = {};
@@ -546,6 +577,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
                     'data-qtip': gettext('Include volume in backup job'),
                 },
                 name: 'backup',
+                value: !!me.isCreate,
                 bind: {
                     value: '{isIncludedInBackup}',
                 },
@@ -892,6 +924,24 @@ Ext.define('PVE.qemu.HDInputPanel', {
 
         me.callParent();
         me.updateEMMCDiskSizeField();
+        if (me.isCreate && !me.unused && !me.importDisk) {
+            me.mon(me.lookup('discard'), 'change', (_field, value) => {
+                if (!me.settingDiscardDefault) {
+                    me.discardUserValue = value;
+                }
+            });
+            for (const name of ['hdstorage', 'diskformat', 'hdimage']) {
+                const field = me.down(`field[name=${name}]`);
+                me.mon(field, 'change', me.updateDiscardDefault, me);
+            }
+            me.mon(
+                me.down('field[name=hdstorage]').getStore(),
+                'load',
+                me.updateDiscardDefault,
+                me,
+            );
+            me.updateDiscardDefault();
+        }
     },
 
     setAdvancedVisible: function (visible) {
