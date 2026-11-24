@@ -292,7 +292,14 @@ Ext.define('PVE.qemu.HardwareView', {
                 header: gettext('Hard Disk') + ' (' + confid + ')',
                 cdheader: gettext('CD/DVD Drive') + ' (' + confid + ')',
                 cloudheader: gettext('CloudInit Drive') + ' (' + confid + ')',
-                renderer: Ext.htmlEncode,
+                renderer: (value) => {
+                    const drive = PVE.Parser.parseQemuDrive(confid, value);
+                    const rendered = Ext.htmlEncode(value);
+                    if (PVE.Parser.parseBoolean(drive?.disconnected)) {
+                        return rendered + ' (' + Ext.htmlEncode(gettext('Disconnected')) + ')';
+                    }
+                    return rendered;
+                },
             };
         });
         for (let i = 0; i < PVE.Utils.hardware_counts.net; i++) {
@@ -373,7 +380,16 @@ Ext.define('PVE.qemu.HardwareView', {
                     editor: caps.vms['VM.Config.HWType'] ? 'PVE.qemu.ThunderboltEdit' : undefined,
                     never_delete: !caps.vms['VM.Config.HWType'],
                     header: name + ' (' + confid + ')',
-                    renderer: Ext.htmlEncode,
+                    renderer:
+                        type === 'tbdock'
+                            ? (value) => {
+                                  const dock = PVE.Parser.parsePropertyString(value);
+                                  const status = PVE.Parser.parseBoolean(dock.disconnected)
+                                      ? ' (' + gettext('Disconnected') + ')'
+                                      : '';
+                                  return Ext.htmlEncode(value + status);
+                              }
+                            : Ext.htmlEncode,
                 };
             }
         }

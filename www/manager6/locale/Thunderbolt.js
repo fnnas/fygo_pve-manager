@@ -4,6 +4,8 @@
             Thunderbolt: '雷电',
             'Thunderbolt Controller': '雷电主控',
             'Thunderbolt Dock': '雷电扩展坞',
+            'Reserve the upstream port. Unmount disks in this dock and its downstream devices before disconnecting.':
+                '保留上游端口。断开前请先在客户机中卸载此扩展坞和下游设备上的磁盘。',
             'Generic USB4': '通用 USB4',
             'Controller model': '主控型号',
             'Thunderbolt dock port': '雷电扩展坞端口',
@@ -31,6 +33,8 @@
             Thunderbolt: 'Thunderbolt',
             'Thunderbolt Controller': 'Thunderbolt 控制器',
             'Thunderbolt Dock': 'Thunderbolt 擴充基座',
+            'Reserve the upstream port. Unmount disks in this dock and its downstream devices before disconnecting.':
+                '保留上游連接埠。斷開前請先在客體中卸載此擴充基座和下游裝置上的磁碟。',
             'Generic USB4': '通用 USB4',
             'Controller model': '控制器型號',
             'Thunderbolt dock port': 'Thunderbolt 擴充基座連接埠',

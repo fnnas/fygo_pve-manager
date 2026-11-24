@@ -4,6 +4,7 @@ BIOME ?= proxmox-biome
 
 JSSRC= 							\
 	locale/DiskLimits.js				\
+	locale/DiskConnection.js			\
 	locale/EMMC.js					\
 	locale/SDCard.js					\
 	locale/NVMe.js					\

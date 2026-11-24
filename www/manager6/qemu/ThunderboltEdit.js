@@ -129,7 +129,11 @@ Ext.define('PVE.qemu.ThunderboltEdit', {
                 }
                 const [host, port] = values.connection.split(':');
                 const target = /^tbdock/.test(host) ? 'parent' : 'host';
-                return { [me.confid]: PVE.Parser.printPropertyString({ [target]: host, port }) };
+                const dock = { [target]: host, port };
+                if (values.disconnected) {
+                    dock.disconnected = 1;
+                }
+                return { [me.confid]: PVE.Parser.printPropertyString(dock) };
             },
             items: [
                 {
@@ -141,7 +145,19 @@ Ext.define('PVE.qemu.ThunderboltEdit', {
                     value: isDock ? null : 'usb4-generic',
                 },
                 ...(isDock
-                    ? []
+                    ? [
+                          {
+                              xtype: 'proxmoxcheckbox',
+                              name: 'disconnected',
+                              fieldLabel: gettext('Disconnect'),
+                              autoEl: {
+                                  tag: 'div',
+                                  'data-qtip': gettext(
+                                      'Reserve the upstream port. Unmount disks in this dock and its downstream devices before disconnecting.',
+                                  ),
+                              },
+                          },
+                      ]
                     : [
                           {
                               xtype: 'displayfield',
@@ -187,6 +203,9 @@ Ext.define('PVE.qemu.ThunderboltEdit', {
                     const value = PVE.Parser.parsePropertyString(config[me.confid]);
                     const upstream = value.parent || value.host;
                     field.setValue(upstream ? upstream + ':' + value.port : choices[0]?.[0]);
+                    panel
+                        .down('field[name=disconnected]')
+                        .setValue(PVE.Parser.parseBoolean(value.disconnected));
                 } else {
                     const value = PVE.Parser.parsePropertyString(config[me.confid], 'model');
                     field.setValue(value.model ?? 'usb4-generic');

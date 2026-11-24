@@ -225,6 +225,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         }
 
         PVE.Utils.propertyStringSet(me.drive, !values.backup, 'backup', '0');
+        PVE.Utils.propertyStringSet(me.drive, values.disconnected, 'disconnected', '1');
         PVE.Utils.propertyStringSet(me.drive, values.noreplicate, 'replicate', 'no');
         PVE.Utils.propertyStringSet(me.drive, values.discard, 'discard', 'on');
         PVE.Utils.propertyStringSet(me.drive, values.ssd, 'ssd', 'on');
@@ -377,6 +378,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.discard = drive.discard === 'on';
         values.ssd = PVE.Parser.parseBoolean(drive.ssd);
         values.iothread = PVE.Parser.parseBoolean(drive.iothread);
+        values.disconnected = PVE.Parser.parseBoolean(drive.disconnected);
         values.readOnly = PVE.Parser.parseBoolean(drive.ro);
         values.aio = drive.aio || '__default__';
         values.removable = PVE.Parser.parseBoolean(drive.removable, 1);
@@ -591,6 +593,17 @@ Ext.define('PVE.qemu.HDInputPanel', {
         );
 
         advancedColumn1.push(
+            {
+                xtype: 'proxmoxcheckbox',
+                fieldLabel: gettext('Disconnect'),
+                name: 'disconnected',
+                autoEl: {
+                    tag: 'div',
+                    'data-qtip': gettext(
+                        'Keep the disk configured. Unmount it in the guest before disconnecting. The device type and hotplug settings determine when the change takes effect.',
+                    ),
+                },
+            },
             {
                 xtype: 'proxmoxcheckbox',
                 fieldLabel: gettext('SSD emulation'),
