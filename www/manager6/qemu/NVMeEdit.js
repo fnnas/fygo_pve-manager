@@ -331,7 +331,21 @@ Ext.define('PVE.qemu.NVMe', {
 
     createPanel: function (view) {
         let me = this;
-        const fields = {};
+        const fields = {
+            nvmeDock: {
+                xtype: 'proxmoxKVComboBox',
+                name: 'nvmeDock',
+                reference: 'nvmeDock',
+                fieldLabel: gettext('Thunderbolt dock port'),
+                labelWidth: 165,
+                value: '',
+                comboItems: [['', gettext('Direct PCIe connection')]],
+                bind: {
+                    hidden: '{!hasThunderboltDock}',
+                    disabled: '{!isNVMe || !hasThunderboltDock}',
+                },
+            },
+        };
         const get = (name) => view.down(`field[name=nvme-${name}]`)?.getValue();
         const defaultText = (value) => `${Proxmox.Utils.defaultText} (${value})`;
         const setPlaceholder = (name, value) => {
@@ -882,6 +896,7 @@ Ext.define('PVE.qemu.NVMe', {
                 panel(
                     gettext('Controller'),
                     [
+                        'nvmeDock',
                         'nvme-controller',
                         'serial',
                         'model',

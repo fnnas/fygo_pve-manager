@@ -8,6 +8,7 @@ JSSRC= 							\
 	locale/SDCard.js					\
 	locale/NVMe.js					\
 	locale/CustomMachine.js				\
+	locale/Thunderbolt.js				\
 	locale/VFIODisplay.js				\
 	locale/DisplayTypes.js				\
 	Parser.js					\
@@ -272,6 +273,7 @@ JSSRC= 							\
 	qemu/CreateWizard.js				\
 	qemu/DisplayEdit.js				\
 	qemu/NVMeEdit.js					\
+	qemu/ThunderboltEdit.js				\
 	qemu/SDCardEdit.js				\
 	qemu/HDEdit.js					\
 	qemu/HDEfi.js					\

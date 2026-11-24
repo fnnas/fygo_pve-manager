@@ -1828,6 +1828,8 @@ Ext.define('PVE.Utils', {
         },
 
         hardware_counts: {
+            thunderbolt: 2,
+            tbdock: 4,
             net: 32,
             usb: 14,
             usb_old: 5,

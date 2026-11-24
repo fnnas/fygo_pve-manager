@@ -21,6 +21,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             isVirtIO: false,
             isSCSISingle: false,
             isNVMe: false,
+            hasThunderboltDock: false,
             nvmeIsChild: false,
             nvmeZoned: false,
             nvmeFDP: false,
@@ -121,6 +122,41 @@ Ext.define('PVE.qemu.HDInputPanel', {
         me.settingDiscardDefault = true;
         discard.setValue(supportedBus && (me.discardUserValue ?? (thin && !existingImage)));
         me.settingDiscardDefault = false;
+    },
+
+    updateThunderboltDocks: function () {
+        const me = this;
+        const field = me.lookup('nvmeDock');
+        if (!field) {
+            return;
+        }
+        const confid = me.unused ? me.bussel?.getConfId() : me.confid;
+        const available = PVE.qemu.Thunderbolt.availablePorts(me.vmconfig, confid, true);
+        const docks = Object.keys(me.vmconfig)
+            .filter((key) => /^tbdock[0-3]$/.test(key) && me.vmconfig[key])
+            .sort();
+        const integrated = new Map();
+        for (const [key, value] of Object.entries(me.vmconfig)) {
+            if (/^nvme\d+$/.test(key) && value) {
+                const drive = PVE.Parser.parseQemuDrive(key, value);
+                if (drive?.['nvme-dock'] && !drive['nvme-dock-port']) {
+                    integrated.set(drive['nvme-dock'], key);
+                }
+            }
+        }
+        const builtInChoices = docks
+            .filter(
+                (dock) =>
+                    (integrated.get(dock) === confid && integrated.has(dock)) ||
+                    (!integrated.has(dock) &&
+                        !PVE.qemu.Thunderbolt.supportsDownstream(me.vmconfig, dock)),
+            )
+            .map((dock) => [dock, dock + ' · ' + gettext('Built-in NVMe')]);
+        const selected = field.getValue() ?? '';
+        const choices = [...builtInChoices, ...available];
+        field.setComboItems([['', gettext('Direct PCIe connection')], ...choices]);
+        field.setValue(choices.some(([key]) => key === selected) ? selected : '');
+        me.getViewModel().set('hasThunderboltDock', docks.length > 0);
     },
 
     updateEMMCDiskSizeField: function () {
@@ -241,6 +277,15 @@ Ext.define('PVE.qemu.HDInputPanel', {
 
         PVE.qemu.SDCard.applyValues(me.drive, values, confid);
         PVE.qemu.NVMe.applyValues(me.drive, values, confid);
+        delete me.drive['nvme-dock'];
+        delete me.drive['nvme-dock-port'];
+        if (/^nvme\d+$/.test(confid) && values.nvmeDock) {
+            const [dock, port] = values.nvmeDock.split(':');
+            me.drive['nvme-dock'] = dock;
+            if (port) {
+                me.drive['nvme-dock-port'] = port;
+            }
+        }
         params[confid] = PVE.Parser.printQemuDrive(me.drive);
 
         return params;
@@ -251,6 +296,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         me.vmconfig = vmconfig;
         me.bussel?.updateVMConfig(vmconfig);
         me.updateNVMeControllers();
+        me.updateThunderboltDocks();
     },
 
     setVMConfig: function (vmconfig) {
@@ -273,6 +319,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
             me.unusedDisks.setValue(me.confid);
         }
         me.updateNVMeControllers();
+        me.updateThunderboltDocks();
     },
 
     updateNVMeControllers: function () {
@@ -292,6 +339,9 @@ Ext.define('PVE.qemu.HDInputPanel', {
             const drive = panel
                 ? { 'nvme-controller': panel.lookup('nvmeOwner')?.getValue() }
                 : PVE.Parser.parseQemuDrive(id, value);
+            if (drive?.['nvme-dock'] || panel?.lookup('nvmeDock')?.getValue()) {
+                return;
+            }
             const owner = drive?.['nvme-controller'];
             const index = id.slice(4);
             if (
@@ -349,6 +399,10 @@ Ext.define('PVE.qemu.HDInputPanel', {
         values.emmcCid = drive.cid || '';
         Object.assign(values, PVE.qemu.SDCard.loadValues(drive));
         Object.assign(values, PVE.qemu.NVMe.loadValues(drive));
+        values.nvmeDock = drive['nvme-dock'] ?? '';
+        if (drive['nvme-dock-port']) {
+            values.nvmeDock += ':' + drive['nvme-dock-port'];
+        }
 
         for (const name of [
             'mbps_rd',
@@ -923,6 +977,7 @@ Ext.define('PVE.qemu.HDInputPanel', {
         ];
 
         me.callParent();
+        me.updateThunderboltDocks();
         me.updateEMMCDiskSizeField();
         if (me.isCreate && !me.unused && !me.importDisk) {
             me.mon(me.lookup('discard'), 'change', (_field, value) => {

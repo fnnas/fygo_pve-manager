@@ -360,6 +360,23 @@ Ext.define('PVE.qemu.HardwareView', {
                 header: gettext('Serial Port') + ' (' + confid + ')',
             };
         }
+        for (const [type, name] of [
+            ['thunderbolt', gettext('Thunderbolt Controller')],
+            ['tbdock', gettext('Thunderbolt Dock')],
+        ]) {
+            for (let i = 0; i < PVE.Utils.hardware_counts[type]; i++) {
+                const confid = type + i;
+                rows[confid] = {
+                    group: 31,
+                    order: type === 'thunderbolt' ? i : 2 + i,
+                    tdCls: 'pve-itype-icon-pci',
+                    editor: caps.vms['VM.Config.HWType'] ? 'PVE.qemu.ThunderboltEdit' : undefined,
+                    never_delete: !caps.vms['VM.Config.HWType'],
+                    header: name + ' (' + confid + ')',
+                    renderer: Ext.htmlEncode,
+                };
+            }
+        }
         rows.audio0 = {
             group: 40,
             iconCls: 'volume-up',
@@ -754,6 +771,25 @@ Ext.define('PVE.qemu.HardwareView', {
 
             me.down('#addUsb').setDisabled(noVMConfigHWTypePerm || isAtUsbLimit());
             me.down('#addPci').setDisabled(noVMConfigHWTypePerm || isAtLimit('hostpci'));
+            const tbConfig = {};
+            for (const { id, data } of me.rstore.getData().items) {
+                if (/^(?:thunderbolt|tbdock|nvme)\d+$/.test(id) && !data.delete) {
+                    tbConfig[id] = data.pending ?? data.value;
+                }
+            }
+            const thunderboltAllowed =
+                !noVMConfigHWTypePerm &&
+                PVE.qemu.Architecture.isQ35Machine(me.getObjectValue('machine', undefined, true)) &&
+                PVE.qemu.Architecture.getGuestArchitecture(
+                    me.getObjectValue('arch', undefined, true),
+                    nodename,
+                ) === 'x86_64';
+            me.down('#addThunderbolt').setDisabled(!thunderboltAllowed || isAtLimit('thunderbolt'));
+            me.down('#addThunderboltDock').setDisabled(
+                !thunderboltAllowed ||
+                    isAtLimit('tbdock') ||
+                    PVE.qemu.Thunderbolt.availablePorts(tbConfig).length === 0,
+            );
             me.down('#addAudio').setDisabled(noVMConfigHWTypePerm || isAtLimit('audio'));
             me.down('#addSerial').setDisabled(noVMConfigHWTypePerm || isAtLimit('serial'));
             me.down('#addNet').setDisabled(noVMConfigNetPerm || isAtLimit('net'));
@@ -902,6 +938,20 @@ Ext.define('PVE.qemu.HardwareView', {
                                 disabled:
                                     !caps.nodes['Sys.Console'] && !caps.mapping['Mapping.Use'],
                                 handler: editorFactory('PCIEdit'),
+                            },
+                            {
+                                text: gettext('Thunderbolt Controller'),
+                                itemId: 'addThunderbolt',
+                                iconCls: 'pve-itype-icon-pci',
+                                disabled: true,
+                                handler: editorFactory('ThunderboltEdit'),
+                            },
+                            {
+                                text: gettext('Thunderbolt Dock'),
+                                itemId: 'addThunderboltDock',
+                                iconCls: 'pve-itype-icon-pci',
+                                disabled: true,
+                                handler: editorFactory('ThunderboltEdit', { dock: true }),
                             },
                             {
                                 text: gettext('Serial Port'),

@@ -70,11 +70,10 @@ Ext.define('PVE.qemu.BootOrderPanel', {
         if (typeof value !== 'string' || value.length === 0) {
             return false;
         }
-        const detachedNVMe =
-            /^nvme\d+$/.test(dev) &&
-            PVE.Parser.parseBoolean(PVE.Parser.parseQemuDrive(dev, value)?.detached);
+        const nvme = /^nvme\d+$/.test(dev) ? PVE.Parser.parseQemuDrive(dev, value) : undefined;
+        const unavailableNVMe = PVE.Parser.parseBoolean(nvme?.detached) || nvme?.['nvme-dock'];
         return (
-            (this.isDisk(dev) && !/^emmc/.test(dev) && !detachedNVMe && !this.isCloudinit(value)) ||
+            (this.isDisk(dev) && !/^emmc/.test(dev) && !unavailableNVMe && !this.isCloudinit(value)) ||
             /^net\d+/.test(dev) ||
             /^hostpci\d+/.test(dev) ||
             (/^usb\d+/.test(dev) && !/spice/.test(value))
